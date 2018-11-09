@@ -1,0 +1,108 @@
+version: 2.1
+
+description: Install tools to interact with AWS EKS
+
+examples:
+  install_kubectl:
+    description: Install kubectl
+    usage:
+      version: 2.1
+
+      orbs:
+        eks: tiendanube/eks@1.0.0
+
+      jobs:
+        build:
+          docker:
+            - image: circleci/openjdk:8-jdk
+          steps:
+            - checkout
+            - eks/install_kubectl
+
+  install_aws_iam_authenticator:
+    description: Install AWS IAM Authenticator
+    usage:
+      version: 2.1
+      orbs:
+        eks: tiendanube/eks@1.0.0
+      jobs:
+        build:
+          docker:
+            - image: circleci/openjdk:8-jdk
+          steps:
+            - checkout
+            - eks/install_aws_iam_authenticator
+
+  deploy:
+    description: Deploy to EKS
+    usage:
+      version: 2.1
+      orbs:
+        eks: tiendanube/eks@1.0.0
+      jobs:
+        build:
+          docker:
+            - image: circleci/openjdk:8-jdk
+          steps:
+            - checkout
+            - eks/deploy:
+                environment: environment
+                version: ${CIRCLE_SHA1:0:7}
+                cluster_name: cluster_name
+                region: region
+
+orbs:
+  aws-cli: circleci/aws-cli@0.1.4
+
+commands:
+  install_kubectl:
+    description: Install kubectl
+    steps:
+      - run:
+          command: |
+            curl -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/kubectl
+            chmod +x ./kubectl
+            sudo mv ./kubectl /usr/local/bin
+
+  install_aws_iam_authenticator:
+    description: Install AWS IAM Authenticator
+    steps:
+      - run:
+          command: |
+            curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
+            chmod +x ./aws-iam-authenticator
+            sudo mv ./aws-iam-authenticator /usr/local/bin
+
+  authenticate_eks_cluster:
+    description: Authenticate to EKS Cluster
+    parameters:
+      cluster_name:
+        type: string
+      region:
+        type: string
+    steps:
+      - run:
+          command: aws eks update-kubeconfig --name << parameters.cluster_name >> --region << parameters.region >>
+
+  deploy:
+    description: Deploy to EKS
+    parameters:
+      environment:
+        type: string
+      version:
+        type: string
+      cluster_name:
+        type: string
+      region:
+        type: string
+    steps:
+      - aws-cli/install
+      - install_kubectl
+      - install_aws_iam_authenticator
+      - authenticate_eks_cluster:
+          cluster_name: << parameters.cluster_name >>
+          region: << parameters.region >>
+      - run:
+          command: |
+            kubectl apply -f .k8s/<< parameters.environment >>/bundle.yml
+            sed "s/VERSION/<< parameters.version >>/g" .k8s/<< parameters.environment >>/deployment.yml | kubectl apply -f -
