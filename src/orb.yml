@@ -46,10 +46,13 @@ examples:
           steps:
             - checkout
             - eks/deploy:
-                environment: environment
-                version: ${CIRCLE_SHA1:0:7}
                 cluster_name: cluster_name
                 region: region
+                steps:
+                  - run:
+                      command: |
+                        kubectl apply -f bundle.yml
+                        kubectl apply -f deployment.yml
 
 orbs:
   aws-cli: circleci/aws-cli@0.1.4
@@ -78,8 +81,10 @@ commands:
     parameters:
       cluster_name:
         type: string
+        description: EKS cluster name
       region:
         type: string
+        description: AWS region where the eks cluster is located
     steps:
       - run:
           command: aws eks update-kubeconfig --name << parameters.cluster_name >> --region << parameters.region >>
@@ -87,14 +92,15 @@ commands:
   deploy:
     description: Deploy to EKS
     parameters:
-      environment:
-        type: string
-      version:
-        type: string
       cluster_name:
         type: string
+        description: EKS cluster name
       region:
         type: string
+        description: AWS region where the eks cluster is located
+      steps:
+        type: steps
+        description: Steps to deploy your application (e.g. kubectl apply -f deployment.yml)
     steps:
       - aws-cli/install
       - install_kubectl
@@ -102,7 +108,4 @@ commands:
       - authenticate_eks_cluster:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
-      - run:
-          command: |
-            kubectl apply -f .k8s/<< parameters.environment >>/bundle.yml
-            sed "s/VERSION/<< parameters.version >>/g" .k8s/<< parameters.environment >>/deployment.yml | kubectl apply -f -
+      - steps: << parameters.steps >>
