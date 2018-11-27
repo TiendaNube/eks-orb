@@ -39,12 +39,9 @@ examples:
       version: 2.1
       orbs:
         eks: tiendanube/eks@1.0.0
-      jobs:
-        build:
-          docker:
-            - image: circleci/openjdk:8-jdk
-          steps:
-            - checkout
+      workflows:
+        deploy:
+          jobs:
             - eks/deploy:
                 cluster_name: cluster_name
                 region: region
@@ -56,6 +53,11 @@ examples:
 
 orbs:
   aws-cli: circleci/aws-cli@0.1.4
+
+executors:
+  eks:
+    docker:
+      - image: circleci/openjdk:8-jdk-node
 
 commands:
   install_kubectl:
@@ -89,8 +91,11 @@ commands:
       - run:
           command: aws eks update-kubeconfig --name << parameters.cluster_name >> --region << parameters.region >>
 
+jobs:
   deploy:
-    description: Deploy to EKS
+    description: |
+      Checkout, install awscli, kubectl, aws iam authenticator, authenticate to eks cluster and run the steps provided
+    executor: eks
     parameters:
       cluster_name:
         type: string
@@ -102,6 +107,7 @@ commands:
         type: steps
         description: Steps to deploy your application (e.g. kubectl apply -f deployment.yml)
     steps:
+      - checkout
       - aws-cli/install
       - install_kubectl
       - install_aws_iam_authenticator
