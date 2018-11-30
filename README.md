@@ -18,15 +18,15 @@ The following **required** dependencies must be configured in CircleCI in order 
 version: 2.1
 orbs:
   eks: tiendanube/eks@1.0.0
-jobs:
-  build:
-    docker:
-      - image: circleci/openjdk:8-jdk
-    steps:
-      - checkout
+workflows:
+  deploy:
+    jobs:
       - eks/deploy:
-          environment: environment
-          version: ${CIRCLE_SHA1:0:7}
           cluster_name: cluster_name
           region: region
+          steps:
+            - run:
+                command: |
+                  kubectl apply -f bundle.yml
+                  kubectl apply -f deployment.yml
 ```
