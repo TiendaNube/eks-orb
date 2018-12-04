@@ -166,10 +166,10 @@ jobs:
             fi
 
             if [[ -z "${CURRENT_VERSION}" ]]; then
-              echo "Deployment with version: ${CURRENT_VERSION} not found, creating the first version of the application!"
-              sed "s/VERSION/${CURRENT_VERSION}/g" deployment.yml | kubectl apply --namespace "${DEPLOYMENT_NAMESPACE}" -f -
-              sed "s/VERSION/${CURRENT_VERSION}/g" service.yml | kubectl apply --namespace "${DEPLOYMENT_NAMESPACE}" -f -
-              kubectl rollout status deployment/"${DEPLOYMENT_NAME}-${CURRENT_VERSION}" --namespace "${DEPLOYMENT_NAMESPACE}"
+              echo "Deployment not found, creating the first version of the application with version: ${NEW_VERSION}!"
+              sed "s/VERSION/${NEW_VERSION}/g" deployment.yml | kubectl apply --namespace "${DEPLOYMENT_NAMESPACE}" -f -
+              sed "s/VERSION/${NEW_VERSION}/g" service.yml | kubectl apply --namespace "${DEPLOYMENT_NAMESPACE}" -f -
+              kubectl rollout status deployment/"${DEPLOYMENT_NAME}-${NEW_VERSION}" --namespace "${DEPLOYMENT_NAMESPACE}"
               exit 0
             fi
 
