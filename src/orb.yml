@@ -64,6 +64,7 @@ commands:
     description: Install kubectl
     steps:
       - run:
+          name: Install kubectl
           command: |
             curl -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/kubectl
             chmod +x ./kubectl
@@ -73,6 +74,7 @@ commands:
     description: Install AWS IAM Authenticator
     steps:
       - run:
+          name: Install AWS IAM Authenticator
           command: |
             curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.10.3/2018-07-26/bin/linux/amd64/aws-iam-authenticator
             chmod +x ./aws-iam-authenticator
@@ -89,6 +91,7 @@ commands:
         description: AWS region where the eks cluster is located
     steps:
       - run:
+          name: Authenticate to EKS Cluster
           command: aws eks update-kubeconfig --name << parameters.cluster_name >> --region << parameters.region >>
 
 jobs:
@@ -152,6 +155,7 @@ jobs:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
       - run:
+          name: Blue/Green Deploy
           working_directory: << parameters.working-directory >>
           command: |
             DEPLOYMENT_NAME=<< parameters.deployment-name >>
