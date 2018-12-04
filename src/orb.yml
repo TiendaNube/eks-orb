@@ -157,7 +157,7 @@ jobs:
             DEPLOYMENT_NAME=<< parameters.deployment-name >>
             DEPLOYMENT_NAMESPACE=<< parameters.deployment-namespace >>
             SERVICE_NAME=<< parameters.service-name >>
-            CURRENT_VERSION=$(kubectl get service "${DEPLOYMENT_NAME}" -o=jsonpath='{.spec.selector.version}' --namespace "${DEPLOYMENT_NAMESPACE}")
+            CURRENT_VERSION=$(kubectl get service "${DEPLOYMENT_NAME}" -o=jsonpath='{.spec.selector.version}' --namespace "${DEPLOYMENT_NAMESPACE}" || true)
             NEW_VERSION=<< parameters.new-version >>
 
             if [[ "${CURRENT_VERSION}" == "${NEW_VERSION}" ]]; then
