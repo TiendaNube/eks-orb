@@ -52,7 +52,7 @@ examples:
                         kubectl apply -f deployment.yml
 
 orbs:
-  aws-cli: circleci/aws-cli@0.1.4
+  aws-cli: circleci/aws-cli@0.1.6
 
 executors:
   eks:
