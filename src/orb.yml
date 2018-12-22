@@ -80,6 +80,19 @@ commands:
             chmod +x ./aws-iam-authenticator
             sudo mv ./aws-iam-authenticator /usr/local/bin
 
+  install_helm:
+    description: Install Helm & Tiller
+    steps:
+      - run:
+          name: Install Helm & Tiller
+          command: |
+            curl -o helm-v2.12.1-linux-amd64.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-v2.12.1-linux-amd64.tar.gz
+            tar -zxvf helm-v2.12.1-linux-amd64.tar.gz
+            sudo mv ./linux-amd64/helm /usr/local/bin
+            sudo mv ./linux-amd64/tiller /usr/local/bin
+            helm init
+            helm plugin install https://github.com/hypnoglow/helm-s3.git
+
   authenticate_eks_cluster:
     description: Authenticate to EKS Cluster
     parameters:
@@ -117,6 +130,7 @@ jobs:
       - authenticate_eks_cluster:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
+      - install_helm
       - steps: << parameters.steps >>
 
   blue-green-deploy:
