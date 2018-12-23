@@ -3,36 +3,6 @@ version: 2.1
 description: Install tools to interact with AWS EKS
 
 examples:
-  install_kubectl:
-    description: Install kubectl
-    usage:
-      version: 2.1
-
-      orbs:
-        eks: tiendanube/eks@1.0.0
-
-      jobs:
-        build:
-          docker:
-            - image: circleci/openjdk:8-jdk
-          steps:
-            - checkout
-            - eks/install_kubectl
-
-  install_aws_iam_authenticator:
-    description: Install AWS IAM Authenticator
-    usage:
-      version: 2.1
-      orbs:
-        eks: tiendanube/eks@1.0.0
-      jobs:
-        build:
-          docker:
-            - image: circleci/openjdk:8-jdk
-          steps:
-            - checkout
-            - eks/install_aws_iam_authenticator
-
   deploy:
     description: Deploy to EKS
     usage:
@@ -58,6 +28,9 @@ executors:
   eks:
     docker:
       - image: circleci/openjdk:8-jdk-node
+  helm:
+    docker:
+      - image: tiendanube/circleci-eks:v1.0.0
 
 commands:
   install_kubectl:
@@ -79,19 +52,6 @@ commands:
             curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.11.5/2018-12-06/bin/linux/amd64/aws-iam-authenticator
             chmod +x ./aws-iam-authenticator
             sudo mv ./aws-iam-authenticator /usr/local/bin
-
-  install_helm:
-    description: Install Helm & Tiller
-    steps:
-      - run:
-          name: Install Helm & Tiller
-          command: |
-            curl -o helm-v2.12.1-linux-amd64.tar.gz https://storage.googleapis.com/kubernetes-helm/helm-v2.12.1-linux-amd64.tar.gz
-            tar -zxvf helm-v2.12.1-linux-amd64.tar.gz
-            sudo mv ./linux-amd64/helm /usr/local/bin
-            sudo mv ./linux-amd64/tiller /usr/local/bin
-            helm init
-            helm plugin install https://github.com/hypnoglow/helm-s3.git
 
   authenticate_eks_cluster:
     description: Authenticate to EKS Cluster
@@ -130,7 +90,6 @@ jobs:
       - authenticate_eks_cluster:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
-      - install_helm
       - steps: << parameters.steps >>
 
   blue-green-deploy:
@@ -206,3 +165,58 @@ jobs:
 
             echo "Delete previous deployment version"
             kubectl delete deployment "${DEPLOYMENT_NAME}-${CURRENT_VERSION}" --namespace "${DEPLOYMENT_NAMESPACE}"
+
+  helm-deploy:
+    description: Deploy the provided helm chart to EKS Cluster
+    executor: helm
+    parameters:
+      cluster_name:
+        type: string
+        description: EKS cluster name
+      region:
+        type: string
+        description: AWS region where the eks cluster is located
+      s3-chart-repo:
+        type: string
+        description: Additional helm chart repository
+        default: ""
+      release-name:
+        type: string
+        description: Helm release name
+      values-file:
+        type: string
+        description: Helm values file
+      namespace:
+        type: string
+        description: Namespace where the chart will be installed
+      chart:
+        type: string
+        description: Chart that will be installed
+      image-tag:
+        type: string
+        description: Which image tag will be installed
+        default: ${CIRCLE_SHA1:0:7}
+    steps:
+      - checkout
+      - authenticate_eks_cluster:
+          cluster_name: << parameters.cluster_name >>
+          region: << parameters.region >>
+      - when:
+          condition: << parameters.s3-chart-repo >>
+          name: Add additional helm repo
+          steps:
+            - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+      - run:
+          name: Upgrade helm chart
+          command: >
+            helm upgrade
+            --install << parameters.release-name >>
+            --values << parameters.values-file >>
+            --set image.tag="<< parameters.image-tag >>"
+            --namespace << parameters.namespace >>
+            << parameters.chart >>
+      - run:
+          name: Check the release status
+          command: |
+            sleep 10
+            helm status << parameters.release-name >>
