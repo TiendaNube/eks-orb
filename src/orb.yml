@@ -21,38 +21,12 @@ examples:
                         kubectl apply -f bundle.yml
                         kubectl apply -f deployment.yml
 
-orbs:
-  aws-cli: circleci/aws-cli@0.1.6
-
 executors:
-  eks:
-    docker:
-      - image: circleci/openjdk:8-jdk-node
-  helm:
+  default:
     docker:
       - image: tiendanube/circleci-eks:v1.0.0
 
 commands:
-  install_kubectl:
-    description: Install kubectl
-    steps:
-      - run:
-          name: Install kubectl
-          command: |
-            curl -o kubectl https://amazon-eks.s3-us-west-2.amazonaws.com/1.11.5/2018-12-06/bin/linux/amd64/kubectl
-            chmod +x ./kubectl
-            sudo mv ./kubectl /usr/local/bin
-
-  install_aws_iam_authenticator:
-    description: Install AWS IAM Authenticator
-    steps:
-      - run:
-          name: Install AWS IAM Authenticator
-          command: |
-            curl -o aws-iam-authenticator https://amazon-eks.s3-us-west-2.amazonaws.com/1.11.5/2018-12-06/bin/linux/amd64/aws-iam-authenticator
-            chmod +x ./aws-iam-authenticator
-            sudo mv ./aws-iam-authenticator /usr/local/bin
-
   authenticate_eks_cluster:
     description: Authenticate to EKS Cluster
     parameters:
@@ -69,9 +43,8 @@ commands:
 
 jobs:
   deploy:
-    description: |
-      Checkout, install awscli, kubectl, aws iam authenticator, authenticate to eks cluster and run the steps provided
-    executor: eks
+    description: Authenticate to eks cluster and run the steps provided
+    executor: default
     parameters:
       cluster_name:
         type: string
@@ -84,18 +57,14 @@ jobs:
         description: Steps to deploy your application (e.g. kubectl apply -f deployment.yml)
     steps:
       - checkout
-      - aws-cli/install
-      - install_kubectl
-      - install_aws_iam_authenticator
       - authenticate_eks_cluster:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
       - steps: << parameters.steps >>
 
   blue-green-deploy:
-    description: |
-      Checkout, install awscli, kubectl, aws iam authenticator, authenticate to eks cluster and execute a blue/green deploy
-    executor: eks
+    description: Authenticate to eks cluster and execute a blue/green deploy
+    executor: default
     parameters:
       cluster_name:
         type: string
@@ -121,9 +90,6 @@ jobs:
         description: Folder where the k8s config files are located
     steps:
       - checkout
-      - aws-cli/install
-      - install_kubectl
-      - install_aws_iam_authenticator
       - authenticate_eks_cluster:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
@@ -167,8 +133,8 @@ jobs:
             kubectl delete deployment "${DEPLOYMENT_NAME}-${CURRENT_VERSION}" --namespace "${DEPLOYMENT_NAMESPACE}"
 
   helm-deploy:
-    description: Deploy the provided helm chart to EKS Cluster
-    executor: helm
+    description: Deploy the given Helm chart to EKS Cluster
+    executor: default
     parameters:
       cluster_name:
         type: string
@@ -179,7 +145,7 @@ jobs:
       s3-chart-repo:
         type: string
         description: Additional helm chart repository
-        default: ""
+        default:
       release-name:
         type: string
         description: Helm release name
@@ -215,6 +181,7 @@ jobs:
             --set image.tag="<< parameters.image-tag >>"
             --namespace << parameters.namespace >>
             << parameters.chart >>
+            --wait
       - run:
           name: Check the release status
           command: |
