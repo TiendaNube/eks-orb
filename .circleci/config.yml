@@ -20,6 +20,7 @@ workflows:
   btd:
     jobs:
       - orb-tools/publish:
+          context: orbs
           name: dev-publish
           orb-path: src/orb.yml
           orb-ref: tiendanube/eks@dev:${CIRCLE_BRANCH}
@@ -29,5 +30,6 @@ workflows:
           requires:
             - dev-publish
       - production-publish:
+          context: orbs
           requires:
             - promote-production
