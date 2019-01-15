@@ -1,15 +1,12 @@
-# CircleCI build config to test the EKS orb
 version: 2.1
+
 orbs:
-  eks: tiendanube/eks@1.0.0
-jobs:
-  build:
-    docker:
-      - image: circleci/openjdk:8-jdk
-    steps:
-      - checkout
-      - eks/deploy:
-          environment: environment
-          version: ${CIRCLE_SHA1:0:7}
-          cluster_name: cluster_name
-          region: region
+  orb-tools: circleci/orb-tools@3.0.0
+
+workflows:
+  btd:
+    jobs:
+      - orb-tools/publish:
+          orb-path: src/orb.yml
+          orb-ref: tiendanube/eks@dev:${CIRCLE_BRANCH}
+          validate: true
