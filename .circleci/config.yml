@@ -10,6 +10,13 @@ executors:
       - image: circleci/circleci-cli
 
 jobs:
+  validate:
+    executor: cli
+    steps:
+      - checkout
+      - orb-tools/validate:
+          orb-path: src/orb.yml
+
   production-publish:
     executor: cli
     steps:
@@ -19,12 +26,19 @@ jobs:
 workflows:
   btd:
     jobs:
+      - validate
+      - promote-dev:
+          type: approval
+          requires:
+            - validate
       - orb-tools/publish:
           context: orbs
           name: dev-publish
           orb-path: src/orb.yml
           orb-ref: tiendanube/eks@dev:${CIRCLE_BRANCH}
-          validate: true
+          validate: false
+          requires:
+            - promote-dev
       - promote-production:
           type: approval
           requires:
