@@ -3,10 +3,31 @@ version: 2.1
 orbs:
   orb-tools: circleci/orb-tools@3.0.0
 
+executors:
+  cli:
+    resource_class: small
+    docker:
+      - image: circleci/circleci-cli
+
+jobs:
+  production-publish:
+    executor: cli
+    steps:
+      - checkout
+      - run: circleci orb publish promote tiendanube/eks@dev:${CIRCLE_BRANCH} patch --token $CIRCLE_TOKEN
+
 workflows:
   btd:
     jobs:
       - orb-tools/publish:
+          name: dev-publish
           orb-path: src/orb.yml
           orb-ref: tiendanube/eks@dev:${CIRCLE_BRANCH}
           validate: true
+      - promote-production:
+          type: approval
+          requires:
+            - dev-publish
+      - production-publish:
+          requires:
+            - promote-production
