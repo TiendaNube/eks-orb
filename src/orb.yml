@@ -162,6 +162,10 @@ jobs:
         type: string
         description: Which image tag will be installed
         default: ${CIRCLE_SHA1:0:7}
+      timeout:
+        type: integer
+        description: Time in seconds to wait for any individual Kubernetes operation (default 300)
+        default: 300
     steps:
       - checkout
       - authenticate_eks_cluster:
@@ -182,6 +186,7 @@ jobs:
             --namespace << parameters.namespace >>
             << parameters.chart >>
             --wait
+            --timeout << parameters.timeout >>
       - run:
           name: Check the release status
           command: |
