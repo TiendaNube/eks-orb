@@ -162,8 +162,15 @@ jobs:
         type: string
         description: Which image tag will be installed
         default: ${CIRCLE_SHA1:0:7}
+      checkout:
+        type: boolean
+        description: Boolean for whether or not to checkout as a first step. Default is true.
+        default: true
     steps:
-      - checkout
+      - when:
+          condition: << parameters.checkout >>
+          steps:
+            - checkout
       - authenticate_eks_cluster:
           cluster_name: << parameters.cluster_name >>
           region: << parameters.region >>
