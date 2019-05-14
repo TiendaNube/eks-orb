@@ -38,6 +38,10 @@ commands:
         description: AWS region where the eks cluster is located
     steps:
       - run:
+          name: Set default AWS Region
+          command: |
+            aws configure set region << parameters.region >>
+      - run:
           name: Authenticate to EKS Cluster
           command: aws eks update-kubeconfig --name << parameters.cluster_name >> --region << parameters.region >>
 
