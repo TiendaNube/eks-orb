@@ -1,0 +1,18 @@
+description: Authenticate to eks cluster and run the steps provided
+executor: default
+parameters:
+  cluster_name:
+    type: string
+    description: EKS cluster name
+  region:
+    type: string
+    description: AWS region where the eks cluster is located
+  steps:
+    type: steps
+    description: Steps to deploy your application (e.g. kubectl apply -f deployment.yml)
+steps:
+  - checkout
+  - aws-eks/update-kubeconfig-with-authenticator:
+      cluster_name: << parameters.cluster_name >>
+      aws-region: << parameters.region >>
+  - steps: << parameters.steps >>

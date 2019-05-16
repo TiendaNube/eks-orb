@@ -1,0 +1,2 @@
+docker:
+  - image: tiendanube/circleci-eks:v1.0.0

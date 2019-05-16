@@ -1,0 +1,16 @@
+description: Deploy to EKS
+usage:
+  version: 2.1
+  orbs:
+    eks: tiendanube/eks@1.0.0
+  workflows:
+    deploy:
+      jobs:
+        - eks/deploy:
+            cluster_name: cluster_name
+            region: region
+            steps:
+              - run:
+                  command: |
+                    kubectl apply -f bundle.yml
+                    kubectl apply -f deployment.yml
