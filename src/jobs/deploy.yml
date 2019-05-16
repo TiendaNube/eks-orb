@@ -1,6 +1,12 @@
 description: Authenticate to eks cluster and run the steps provided
-executor: default
+
+executor: << parameters.executor >>
+
 parameters:
+  executor:
+    description: Executor to use for this job
+    type: executor
+    default: default
   cluster_name:
     type: string
     description: EKS cluster name
