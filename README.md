@@ -26,7 +26,7 @@ workflows:
   deploy:
     jobs:
       - eks/deploy:
-          cluster_name: cluster_name
+          cluster-name: cluster-name
           region: region
           steps:
             - run:
@@ -43,11 +43,11 @@ workflows:
   deploy:
     jobs:
       - eks/helm-deploy:
-          cluster_name: cluster-region
+          cluster-name: cluster-name
           region: aws-region
           release-name: release-name
           values-file: values.yaml
           namespace: default
-          chart: stable/chart
+          chart: stable/chart-to-be-installed
           image-tag: ${CIRCLE_SHA1:0:7}
 ```

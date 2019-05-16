@@ -7,7 +7,7 @@ usage:
     deploy:
       jobs:
         - eks/helm-deploy:
-            cluster_name: cluster-region
+            cluster-name: cluster-name
             region: aws-region
             release-name: release-name
             values-file: values.yaml

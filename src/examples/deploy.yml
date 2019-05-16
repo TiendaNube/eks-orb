@@ -7,7 +7,7 @@ usage:
     deploy:
       jobs:
         - eks/deploy:
-            cluster_name: cluster_name
+            cluster-name: cluster-name
             region: region
             steps:
               - run:
