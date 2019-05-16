@@ -18,22 +18,3 @@ workflows:
           context: orbs
           requires:
             - pack
-      - promote-production:
-          type: approval
-          requires:
-            - publish-dev
-          filters:
-            branches:
-              only:
-                - master
-      - orb-tools/dev-promote-prod:
-          name: dev-promote-patch
-          orb-name: tiendanube/eks
-          context: orbs
-          release: patch
-          filters:
-            branches:
-              only:
-                - master
-          requires:
-            - promote-production
