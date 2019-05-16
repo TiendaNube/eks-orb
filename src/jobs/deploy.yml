@@ -6,7 +6,7 @@ parameters:
   executor:
     description: Executor to use for this job
     type: executor
-    default: circleci-eks
+    default: default
   cluster_name:
     type: string
     description: EKS cluster name

@@ -24,20 +24,23 @@ workflows:
           name: pack
           requires:
             - lint
-      - publish-dev:
-          type: approval
-          requires:
-            - pack
       - orb-tools/publish-dev:
+          name: publish-dev
           orb-name: tiendanube/eks
           context: orbs
-          requires:
-            - publish-dev
       - promote-production:
           type: approval
           requires:
-            - orb-tools/publish-dev
+            - publish-dev
+          filters:
+            branches:
+              only:
+                - master
       - production-publish:
           context: orbs
           requires:
             - promote-production
+          filters:
+            branches:
+              only:
+                - master
