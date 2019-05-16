@@ -3,18 +3,6 @@ version: 2.1
 orbs:
   orb-tools: circleci/orb-tools@8.9.0
 
-executors:
-  cli:
-    docker:
-      - image: circleci/circleci-cli
-
-jobs:
-  production-publish:
-    executor: cli
-    steps:
-      - checkout
-      - run: circleci orb publish promote tiendanube/eks@dev:${CIRCLE_BRANCH} patch --token $CIRCLE_TOKEN
-
 workflows:
   btd:
     jobs:
@@ -38,11 +26,13 @@ workflows:
             branches:
               only:
                 - master
-      - production-publish:
-          context: orbs
-          requires:
-            - promote-production
+      - orb-tools/dev-promote-prod:
+          name: dev-promote-major
+          orb-name: tiendanube/eks
+          release: major
           filters:
             branches:
               only:
                 - master
+          requires:
+            - promote-production
