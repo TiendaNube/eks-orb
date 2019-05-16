@@ -1,0 +1,16 @@
+description: EKS Helm Deploy
+usage:
+  version: 2.1
+  orbs:
+    eks: tiendanube/eks@1.0.0
+  workflows:
+    deploy:
+      jobs:
+        - eks/helm-deploy:
+            cluster_name: cluster-region
+            region: aws-region
+            release-name: release-name
+            values-file: values.yaml
+            namespace: default
+            chart: stable/chart
+            image-tag: ${CIRCLE_SHA1:0:7}

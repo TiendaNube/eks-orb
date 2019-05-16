@@ -27,10 +27,10 @@ workflows:
               only:
                 - master
       - orb-tools/dev-promote-prod:
-          name: dev-promote-major
+          name: dev-promote-patch
           orb-name: tiendanube/eks
           context: orbs
-          release: major
+          release: patch
           filters:
             branches:
               only:
