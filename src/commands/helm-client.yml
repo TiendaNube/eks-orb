@@ -1,0 +1,36 @@
+description: |
+  Allows use the helm client to work with Amazon EKS.
+
+parameters:
+  namespace:
+    description: |
+      A specific namespace
+    type: string
+  command:
+    description: |
+      Available Commands in the helm client
+    type: string
+  args:
+    description: |
+      Arguments to the command selected
+    type: string
+
+steps:
+  - run:
+      name: Helm client command
+      command: |
+        NAMESPACE="<< parameters.namespace >>"
+        COMMAND="<< parameters.command >>"
+        ARGS="<< parameters.args>>"
+
+        if [ -n "${COMMAND}" ]; then
+          set -- "$@" "${COMMAND}"
+        fi
+        if [ -n "${NAMESPACE}" ]; then
+          set -- "$@" --namespace "${NAMESPACE}"
+        fi
+        if [ -n "${ARGS}" ]; then
+          set -- "$@" "${ARGS}"
+        fi
+
+        helm "$@"

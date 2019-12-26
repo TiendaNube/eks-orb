@@ -64,9 +64,9 @@ version: 2.1
 orbs:
   eks: tiendanube/eks@1.1.0
 
-jobs:
-  prepare-deployment:
-    steps:
+workflows:
+  deploy:
+    jobs:
       - eks/helm-client:
           namespace: namespace
           command: command # Available Commands in helm
@@ -82,9 +82,9 @@ version: 2.1
 orbs:
   eks: tiendanube/eks@1.1.0
 
-jobs:
-  prepare-deployment:
-    steps:
+workflows:
+  deploy:
+    jobs:
       - eks/helmfile-client:
           cluster-name: namespace
           env: environment

@@ -3,9 +3,29 @@ usage:
   version: 2.1
   orbs:
     eks: tiendanube/eks@1.1.0
+
+  # jobs:
+  #   helm-client-cmd:
+  #     steps:
+  #       - eks/helm-client:
+  #           namespace: namespace
+  #           command: command 
+  #           args: args
+
+  #   helmfile-client-cmd:
+  #     steps:
+  #       - eks/helmfile-client:
+  #           cluster-name: namespace
+  #           env: environment
+  #           command: command
+  #           args: args
+
+
   workflows:
     deploy:
       jobs:
+        # - helm-client-cmd
+        # - helmfile-client-cmd
         - eks/helm-deploy:
             cluster-name: cluster-name
             region: aws-region
