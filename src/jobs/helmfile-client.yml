@@ -1,0 +1,52 @@
+description: |
+  Allows use the helmfile client to work with Amazon EKS.
+parameters:
+  cluster-name:
+    description: EKS cluster name
+    type: string
+  env:
+    description: Specify the environment name.
+    type: string
+  command:
+    description: |
+      COMMANDS:
+      deps      update charts based on the contents of requirements.yaml
+      repos     sync repositories from state file (helm repo add && helm repo update)
+      charts    DEPRECATED: sync releases from state file (helm upgrade --install)
+      diff      diff releases from state file against env (helm diff)
+      template  template releases from state file against env (helm template)
+      lint      lint charts from state file (helm lint)
+      sync      sync all resources from state file (repos, releases and chart deps)
+      apply     apply all resources from state file only when there are changes
+      status    retrieve status of releases in state file
+      delete    DEPRECATED: delete releases from state file (helm delete)
+      destroy   deletes and then purges releases
+      test      test releases from state file (helm test)
+      build     output compiled helmfile state(s) as YAML
+      list      list releases defined in state file
+    type: string
+  args:
+    description: Arguments to the command selected
+    type: string
+    default: ""
+
+steps:
+  - run:
+      name: Helmfile client command
+      command: |
+        CLUSTER_NAME="<< parameters.cluster-name >>"
+        ENV_NAME="<< parameters.env >>"
+        COMMAND="<< parameters.command >>"
+        ARGS="<< parameters.args>>"
+
+        if [ -n "${ENV_NAME}" ]; then
+          set -- "$@" -e "${ENV_NAME}"
+        fi
+        if [ -n "${COMMAND}" ]; then
+          set -- "$@" "${COMMAND}"
+        fi
+        if [ -n "${ARGS}" ]; then
+          set -- "$@" "${ARGS}"
+        fi
+
+        EKS_ENV="${CLUSTER_NAME}" helmfile "$@"

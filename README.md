@@ -10,18 +10,20 @@ orb.
 ## Setup required to use this orb
 The following **required** dependencies must be configured in CircleCI in order to use this orb:
 
-* AWS_ACCESS_KEY_ID - environment variable for AWS login
-* AWS_SECRET_ACCESS_KEY - environment variable for AWS login
+* **AWS_ACCESS_KEY_ID** - environment variable for AWS login
+* **AWS_SECRET_ACCESS_KEY** - environment variable for AWS login
 
 For more information on how to properly set up environment variables on CircleCI, read the docs:
 [environment-variable-in-a-project](https://circleci.com/docs/2.0/env-vars/#setting-an-environment-variable-in-a-project)
 
 ## Sample use in CircleCI config.yml
 
+- Deploy
+
 ```yaml
 version: 2.1
 orbs:
-  eks: tiendanube/eks@1.0.0
+  eks: tiendanube/eks@1.1.0
 workflows:
   deploy:
     jobs:
@@ -35,10 +37,12 @@ workflows:
                   kubectl apply -f deployment.yml
 ```
 
+- Helm Deploy
+
 ```yaml
 version: 2.1
 orbs:
-  eks: tiendanube/eks@1.0.0
+  eks: tiendanube/eks@1.1.0
 workflows:
   deploy:
     jobs:
@@ -49,5 +53,86 @@ workflows:
           values-file: values.yaml
           namespace: default
           chart: stable/chart-to-be-installed
+          chart-version: latest
           image-tag: ${CIRCLE_SHA1:0:7}
+```
+- Helm Client
+
+```yaml
+version: 2.1
+
+orbs:
+  eks: tiendanube/eks@1.1.0
+
+jobs:
+  prepare-deployment:
+    steps:
+      - eks/helm-client:
+          namespace: namespace
+          command: command # Available Commands in helm
+          args: args
+```
+- Helmfile Client
+
+Example use of the helmfile [below](#helmfile):
+
+```yaml
+version: 2.1
+
+orbs:
+  eks: tiendanube/eks@1.1.0
+
+jobs:
+  prepare-deployment:
+    steps:
+      - eks/helmfile-client:
+          cluster-name: namespace
+          env: environment
+          command: command # Available Commands in helmfile
+          args: args
+```
+- Free execution of commands 
+
+```yaml
+version: 2.1
+
+orbs:
+  eks: tiendanube/eks@1.1.0
+
+jobs:
+  prepare-deployment:
+    steps:
+      - run: aws-iam-authenticator version
+      - run: aws --version
+      - run: kubectl version
+      - run: helm version
+      - run: helmfile --version
+      - run: terraform --version
+```
+
+## [helmfile]()
+
+- Example use:
+
+```yaml
+  - name: external-dns
+    namespace: kube-system
+    chart: stable/external-dns
+    version: latest
+    labels:
+      app: external-dns
+    values:
+      - "helmfiles/external-dns/{{ requiredEnv "EKS_ENV" }}/values.yaml"
+
+{{ if eq (requiredEnv "EKS_ENV") "production" }}
+  - name: nginx-ingress
+    namespace: kube-system
+    chart: stable/nginx-ingress
+    version: latest
+    labels:
+      app: nginx-ingress
+    values:
+      - "helmfiles/nginx-ingress/{{ requiredEnv "EKS_ENV" }}/external.yaml"
+
+{{ end }}
 ```
