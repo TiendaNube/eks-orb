@@ -12,17 +12,11 @@ workflows:
           name: pack
           requires:
             - lint
-      - orb-tools/publish:
-          orb-path: src/orb.yml
-          orb-ref: tiendanube/eks@dev:alpha
-          publish-token-variable: "${ORB_PUBLISHING_TOKEN}"
-          validate: true
+      - orb-tools/publish-dev:
+          name: publish-dev
+          orb-name: tiendanube/eks
+          alpha-version-ref: "dev:alpha"
+          publish-alpha-version: true
           context: orbs
           requires:
             - pack
-      # - orb-tools/publish-dev:
-      #     name: publish-dev
-      #     orb-name: tiendanube/eks
-      #     context: orbs
-      #     requires:
-      #       - pack
