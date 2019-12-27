@@ -1,10 +1,50 @@
 version: 2.1
 
 orbs:
-  orb-tools: circleci/orb-tools@8.27.4
+  orb-tools: circleci/orb-tools@9.0.0
+  eks: tiendanube/eks@<<pipeline.parameters.dev-orb-version>>
+
+parameters:
+  run-integration-tests:
+    type: boolean
+    default: false
+  dev-orb-version:
+    type: string
+    default: "dev:alpha"
+
+jobs:
+  integration-tests-eks-orb:
+    executor: eks/default
+    steps:
+      - checkout
+      - eks/update-kubeconfig-with-authenticator:
+          aws-region: us-west-2
+          cluster-name: staging
+      - eks/helm-client:
+          namespace: core
+          command: ls
+      - eks/helmfile-client:
+          cluster-name: staging
+          command: --version
+      - eks/kubectl:
+          namespace: core
+          command: get
+          args: pods
+      - run:
+          name: Testing All commands
+          command: |
+              aws-iam-authenticator version
+              aws --version
+              kubectl version
+              helm version
+              helmfile --version
+              terraform --version
 
 workflows:
   btd:
+
+    unless: << pipeline.parameters.run-integration-tests >>
+
     jobs:
       - orb-tools/lint:
           name: lint
@@ -15,6 +55,20 @@ workflows:
       - orb-tools/publish-dev:
           name: publish-dev
           orb-name: tiendanube/eks
+          alpha-version-ref: "dev:alpha"
+          publish-token-variable: "CIRCLE_TOKEN"
+          publish-alpha-version: true
           context: orbs
           requires:
             - pack
+      - orb-tools/trigger-integration-tests-workflow:
+          name: trigger-integration-dev
+          requires:
+            - publish-dev
+
+  integration-tests_prod-release:
+    when: << pipeline.parameters.run-integration-tests >>
+    jobs:
+
+      - integration-tests-eks-orb:
+          context: microservices
