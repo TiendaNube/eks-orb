@@ -30,9 +30,8 @@ jobs:
           namespace: core
           command: get
           args: pods
-
       - run:
-          name: Testing commands
+          name: Testing All commands
           command: |
               aws-iam-authenticator version
               aws --version
@@ -43,7 +42,9 @@ jobs:
 
 workflows:
   btd:
+
     unless: << pipeline.parameters.run-integration-tests >>
+
     jobs:
       - orb-tools/lint:
           name: lint
@@ -60,7 +61,6 @@ workflows:
           context: orbs
           requires:
             - pack
-
       - orb-tools/trigger-integration-tests-workflow:
           name: trigger-integration-dev
           requires:
