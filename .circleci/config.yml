@@ -16,6 +16,7 @@ workflows:
           name: publish-dev
           orb-name: tiendanube/eks
           alpha-version-ref: "dev:alpha"
+          publish-token-variable: "TiendaNube"
           publish-alpha-version: true
           context: orbs
           requires:
