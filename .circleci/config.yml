@@ -15,7 +15,7 @@ workflows:
       - orb-tools/publish:
           orb-path: src/orb.yml
           orb-ref: tiendanube/eks@dev:alpha
-          publish-token-variable: "$CIRCLECI_DEV_API_TOKEN"
+          publish-token-variable: ${CIRCLECI_DEV_API_TOKEN}
           validate: true
           context: orbs
           requires:
