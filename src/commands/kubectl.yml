@@ -1,0 +1,42 @@
+description: |
+  Allows use the kubectl to work with Amazon EKS.
+
+parameters:
+  label:
+    description: |
+      Description the command line.
+    type: string
+    default: "kubectl command"
+  namespace:
+    description: |
+      A specific namespace
+    type: string
+  command:
+    description: |
+      Available Commands in the kubectl
+    type: string
+  args:
+    description: |
+      Arguments to the command selected
+    type: string
+    default: ""
+
+steps:
+  - run:
+      name: "<< parameters.label >>"
+      command: |
+        # NAMESPACE="<< parameters.namespace >>"
+        # COMMAND="<< parameters.command >>"
+        # ARGS="<< parameters.args>>"
+
+        # if [ -n "${NAMESPACE}" ]; then
+        #   set -- "$@" -n "${NAMESPACE}"
+        # fi
+        # if [ -n "${COMMAND}" ]; then
+        #   set -- "$@" "${COMMAND}"
+        # fi
+        # if [ -n "${ARGS}" ]; then
+        #   set -- "$@" "${ARGS}"
+        # fi
+
+        kubectl -n << parameters.namespace >> << parameters.command >> << parameters.args>>

@@ -2,12 +2,18 @@ description: |
   Allows use the helmfile client to work with Amazon EKS.
 
 parameters:
+  label:
+    description: |
+      Description the command line.
+    type: string
+    default: "Helmfile client command"
   cluster-name:
     description: EKS cluster name
     type: string
   env:
     description: Specify the environment name.
     type: string
+    default: ""
   command:
     description: |
       Available Commands in the helmfile client
@@ -19,12 +25,12 @@ parameters:
 
 steps:
   - run:
-      name: Helmfile client command
+      name: "<< parameters.label >>"
       command: |
         CLUSTER_NAME="<< parameters.cluster-name >>"
         ENV_NAME="<< parameters.env >>"
         COMMAND="<< parameters.command >>"
-        ARGS="<< parameters.args>>"
+        # ARGS="<< parameters.args >>"
 
         if [ -n "${ENV_NAME}" ]; then
           set -- "$@" -e "${ENV_NAME}"
@@ -32,8 +38,8 @@ steps:
         if [ -n "${COMMAND}" ]; then
           set -- "$@" "${COMMAND}"
         fi
-        if [ -n "${ARGS}" ]; then
-          set -- "$@" "${ARGS}"
-        fi
+        # if [ -n "${ARGS}" ]; then
+        #   set -- "$@" "${ARGS}"
+        # fi
 
-        EKS_ENV="${CLUSTER_NAME}" helmfile "$@"
+        EKS_ENV="${CLUSTER_NAME}" helmfile "$@" << parameters.args >>

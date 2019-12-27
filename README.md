@@ -56,6 +56,48 @@ workflows:
           chart-version: latest
           image-tag: ${CIRCLE_SHA1:0:7}
 ```
+
+- AWS with Authenticator to Kubernetes
+
+```yaml
+version: 2.1
+
+orbs:
+  eks: tiendanube/eks@1.1.0
+
+workflows:
+  deploy:
+    jobs:
+      - eks/update-kubeconfig-with-authenticator:
+          label: my label
+          aws-region: aws-region
+          cluster-name: cluster-name
+          aws-profile: aws-profile
+          kubeconfig-file-path: kubeconfig-file-path
+          cluster-authentication-role-arn: cluster-authentication-role-arn
+          cluster-context-alias: cluster-context-alias
+          dry-run: false
+          verbose: false
+```
+
+- kubectl
+
+```yaml
+version: 2.1
+
+orbs:
+  eks: tiendanube/eks@1.1.0
+
+workflows:
+  deploy:
+    jobs:
+      - eks/kubectl:
+          label: my label
+          namespace: namespace
+          command: command # Available Commands in kubectl
+          args: args
+```
+
 - Helm Client
 
 ```yaml
@@ -68,6 +110,7 @@ workflows:
   deploy:
     jobs:
       - eks/helm-client:
+          label: my label
           namespace: namespace
           command: command # Available Commands in helm
           args: args
@@ -86,6 +129,7 @@ workflows:
   deploy:
     jobs:
       - eks/helmfile-client:
+          label: my label
           cluster-name: namespace
           env: environment
           command: command # Available Commands in helmfile

@@ -4,12 +4,18 @@ commands:
       Allows use the helm client to work with Amazon EKS.
     parameters:
       args:
+        default: ""
         description: |
           Arguments to the command selected
         type: string
       command:
         description: |
           Available Commands in the helm client
+        type: string
+      label:
+        default: Helm client command
+        description: |
+          Description the command line.
         type: string
       namespace:
         description: |
@@ -20,7 +26,7 @@ commands:
         command: |
           NAMESPACE="<< parameters.namespace >>"
           COMMAND="<< parameters.command >>"
-          ARGS="<< parameters.args>>"
+          # ARGS="<< parameters.args >>"
 
           if [ -n "${COMMAND}" ]; then
             set -- "$@" "${COMMAND}"
@@ -28,12 +34,12 @@ commands:
           if [ -n "${NAMESPACE}" ]; then
             set -- "$@" --namespace "${NAMESPACE}"
           fi
-          if [ -n "${ARGS}" ]; then
-            set -- "$@" "${ARGS}"
-          fi
+          # if [ -n "${ARGS}" ]; then
+          #   set -- "$@" "${ARGS}"
+          # fi
 
-          helm "$@"
-        name: Helm client command
+          helm "$@" << parameters.args >>
+        name: << parameters.label >>
   helmfile-client:
     description: |
       Allows use the helmfile client to work with Amazon EKS.
@@ -50,7 +56,13 @@ commands:
           Available Commands in the helmfile client
         type: string
       env:
+        default: ""
         description: Specify the environment name.
+        type: string
+      label:
+        default: Helmfile client command
+        description: |
+          Description the command line.
         type: string
     steps:
     - run:
@@ -58,7 +70,7 @@ commands:
           CLUSTER_NAME="<< parameters.cluster-name >>"
           ENV_NAME="<< parameters.env >>"
           COMMAND="<< parameters.command >>"
-          ARGS="<< parameters.args>>"
+          # ARGS="<< parameters.args >>"
 
           if [ -n "${ENV_NAME}" ]; then
             set -- "$@" -e "${ENV_NAME}"
@@ -66,12 +78,53 @@ commands:
           if [ -n "${COMMAND}" ]; then
             set -- "$@" "${COMMAND}"
           fi
-          if [ -n "${ARGS}" ]; then
-            set -- "$@" "${ARGS}"
-          fi
+          # if [ -n "${ARGS}" ]; then
+          #   set -- "$@" "${ARGS}"
+          # fi
 
-          EKS_ENV="${CLUSTER_NAME}" helmfile "$@"
-        name: Helmfile client command
+          EKS_ENV="${CLUSTER_NAME}" helmfile "$@" << parameters.args >>
+        name: << parameters.label >>
+  kubectl:
+    description: |
+      Allows use the kubectl to work with Amazon EKS.
+    parameters:
+      args:
+        default: ""
+        description: |
+          Arguments to the command selected
+        type: string
+      command:
+        description: |
+          Available Commands in the kubectl
+        type: string
+      label:
+        default: kubectl command
+        description: |
+          Description the command line.
+        type: string
+      namespace:
+        description: |
+          A specific namespace
+        type: string
+    steps:
+    - run:
+        command: |
+          # NAMESPACE="<< parameters.namespace >>"
+          # COMMAND="<< parameters.command >>"
+          # ARGS="<< parameters.args>>"
+
+          # if [ -n "${NAMESPACE}" ]; then
+          #   set -- "$@" -n "${NAMESPACE}"
+          # fi
+          # if [ -n "${COMMAND}" ]; then
+          #   set -- "$@" "${COMMAND}"
+          # fi
+          # if [ -n "${ARGS}" ]; then
+          #   set -- "$@" "${ARGS}"
+          # fi
+
+          kubectl -n << parameters.namespace >> << parameters.command >> << parameters.args>>
+        name: << parameters.label >>
   update-kubeconfig-with-authenticator:
     description: |
       Allows the stock kubectl client to work with Amazon EKS.
@@ -121,6 +174,11 @@ commands:
           KUBECONFIG environment variable (if it is set) or the default kubeconfig
           path (.kube/config) in your home directory.
         type: string
+      label:
+        default: Update the kubectl configuration file to use the authenticator
+        description: |
+          Description the command line.
+        type: string
       verbose:
         default: false
         description: |
@@ -162,7 +220,7 @@ commands:
             set -- "$@" --verbose
           fi
           aws eks update-kubeconfig "$@"
-        name: Update the kubectl configuration file to use the authenticator
+        name: << parameters.label >>
 description: An orb for working with Amazon EKS
 display:
   home_url: https://github.com/TiendaNube/eks-orb
