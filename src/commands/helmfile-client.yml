@@ -22,15 +22,20 @@ parameters:
     description: Arguments to the command selected
     type: string
     default: ""
+  working_dir:
+    description: |
+      In which directory to run the steps. Default: ~/project
+    type: string
+    default: "~/project"
 
 steps:
   - run:
       name: "<< parameters.label >>"
+      working_directory: "<< parameters.working_dir >>"
       command: |
         CLUSTER_NAME="<< parameters.cluster-name >>"
         ENV_NAME="<< parameters.env >>"
         COMMAND="<< parameters.command >>"
-        # ARGS="<< parameters.args >>"
 
         if [ -n "${ENV_NAME}" ]; then
           set -- "$@" -e "${ENV_NAME}"
@@ -38,8 +43,6 @@ steps:
         if [ -n "${COMMAND}" ]; then
           set -- "$@" "${COMMAND}"
         fi
-        # if [ -n "${ARGS}" ]; then
-        #   set -- "$@" "${ARGS}"
-        # fi
 
-        EKS_ENV="${CLUSTER_NAME}" helmfile "$@" << parameters.args >>
+        EKS_ENV="${CLUSTER_NAME}" helmfile "$@" \
+                                  <<#parameters.args>><<parameters.args>><</parameters.args>>

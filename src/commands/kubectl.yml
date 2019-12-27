@@ -20,23 +20,17 @@ parameters:
       Arguments to the command selected
     type: string
     default: ""
+  working_dir:
+    description: |
+      In which directory to run the steps. Default: ~/project
+    type: string
+    default: "~/project"
 
 steps:
   - run:
       name: "<< parameters.label >>"
+      working_directory: "<< parameters.working_dir >>"
       command: |
-        # NAMESPACE="<< parameters.namespace >>"
-        # COMMAND="<< parameters.command >>"
-        # ARGS="<< parameters.args>>"
-
-        # if [ -n "${NAMESPACE}" ]; then
-        #   set -- "$@" -n "${NAMESPACE}"
-        # fi
-        # if [ -n "${COMMAND}" ]; then
-        #   set -- "$@" "${COMMAND}"
-        # fi
-        # if [ -n "${ARGS}" ]; then
-        #   set -- "$@" "${ARGS}"
-        # fi
-
-        kubectl -n << parameters.namespace >> << parameters.command >> << parameters.args>>
+        kubectl -n << parameters.namespace >> \
+          <<#parameters.command>><<parameters.command>><</parameters.command>> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>>

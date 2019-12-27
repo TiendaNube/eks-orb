@@ -20,14 +20,19 @@ parameters:
       Arguments to the command selected
     type: string
     default: ""
+  working_dir:
+    description: |
+      In which directory to run the steps. Default: ~/project
+    type: string
+    default: "~/project"
 
 steps:
   - run:
       name: "<< parameters.label >>"
+      working_directory: "<< parameters.working_dir >>"
       command: |
         NAMESPACE="<< parameters.namespace >>"
         COMMAND="<< parameters.command >>"
-        # ARGS="<< parameters.args >>"
 
         if [ -n "${COMMAND}" ]; then
           set -- "$@" "${COMMAND}"
@@ -35,8 +40,6 @@ steps:
         if [ -n "${NAMESPACE}" ]; then
           set -- "$@" --namespace "${NAMESPACE}"
         fi
-        # if [ -n "${ARGS}" ]; then
-        #   set -- "$@" "${ARGS}"
-        # fi
 
-        helm "$@" << parameters.args >>
+        helm "$@" \
+        <<#parameters.args>><<parameters.args>><</parameters.args>>

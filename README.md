@@ -93,6 +93,7 @@ workflows:
     jobs:
       - eks/kubectl:
           label: my label
+          working_dir: ~/project
           namespace: namespace
           command: command # Available Commands in kubectl
           args: args
@@ -111,6 +112,7 @@ workflows:
     jobs:
       - eks/helm-client:
           label: my label
+          working_dir: ~/project
           namespace: namespace
           command: command # Available Commands in helm
           args: args
@@ -130,6 +132,7 @@ workflows:
     jobs:
       - eks/helmfile-client:
           label: my label
+          working_dir: ~/project
           cluster-name: namespace
           env: environment
           command: command # Available Commands in helmfile

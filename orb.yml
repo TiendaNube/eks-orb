@@ -21,12 +21,16 @@ commands:
         description: |
           A specific namespace
         type: string
+      working_dir:
+        default: ~/project
+        description: |
+          In which directory to run the steps. Default: ~/project
+        type: string
     steps:
     - run:
         command: |
           NAMESPACE="<< parameters.namespace >>"
           COMMAND="<< parameters.command >>"
-          # ARGS="<< parameters.args >>"
 
           if [ -n "${COMMAND}" ]; then
             set -- "$@" "${COMMAND}"
@@ -34,12 +38,11 @@ commands:
           if [ -n "${NAMESPACE}" ]; then
             set -- "$@" --namespace "${NAMESPACE}"
           fi
-          # if [ -n "${ARGS}" ]; then
-          #   set -- "$@" "${ARGS}"
-          # fi
 
-          helm "$@" << parameters.args >>
+          helm "$@" \
+          <<#parameters.args>><<parameters.args>><</parameters.args>>
         name: << parameters.label >>
+        working_directory: << parameters.working_dir >>
   helmfile-client:
     description: |
       Allows use the helmfile client to work with Amazon EKS.
@@ -64,13 +67,17 @@ commands:
         description: |
           Description the command line.
         type: string
+      working_dir:
+        default: ~/project
+        description: |
+          In which directory to run the steps. Default: ~/project
+        type: string
     steps:
     - run:
         command: |
           CLUSTER_NAME="<< parameters.cluster-name >>"
           ENV_NAME="<< parameters.env >>"
           COMMAND="<< parameters.command >>"
-          # ARGS="<< parameters.args >>"
 
           if [ -n "${ENV_NAME}" ]; then
             set -- "$@" -e "${ENV_NAME}"
@@ -78,12 +85,11 @@ commands:
           if [ -n "${COMMAND}" ]; then
             set -- "$@" "${COMMAND}"
           fi
-          # if [ -n "${ARGS}" ]; then
-          #   set -- "$@" "${ARGS}"
-          # fi
 
-          EKS_ENV="${CLUSTER_NAME}" helmfile "$@" << parameters.args >>
+          EKS_ENV="${CLUSTER_NAME}" helmfile "$@" \
+                                    <<#parameters.args>><<parameters.args>><</parameters.args>>
         name: << parameters.label >>
+        working_directory: << parameters.working_dir >>
   kubectl:
     description: |
       Allows use the kubectl to work with Amazon EKS.
@@ -106,25 +112,19 @@ commands:
         description: |
           A specific namespace
         type: string
+      working_dir:
+        default: ~/project
+        description: |
+          In which directory to run the steps. Default: ~/project
+        type: string
     steps:
     - run:
         command: |
-          # NAMESPACE="<< parameters.namespace >>"
-          # COMMAND="<< parameters.command >>"
-          # ARGS="<< parameters.args>>"
-
-          # if [ -n "${NAMESPACE}" ]; then
-          #   set -- "$@" -n "${NAMESPACE}"
-          # fi
-          # if [ -n "${COMMAND}" ]; then
-          #   set -- "$@" "${COMMAND}"
-          # fi
-          # if [ -n "${ARGS}" ]; then
-          #   set -- "$@" "${ARGS}"
-          # fi
-
-          kubectl -n << parameters.namespace >> << parameters.command >> << parameters.args>>
+          kubectl -n << parameters.namespace >> \
+            <<#parameters.command>><<parameters.command>><</parameters.command>> \
+            <<#parameters.args>><<parameters.args>><</parameters.args>>
         name: << parameters.label >>
+        working_directory: << parameters.working_dir >>
   update-kubeconfig-with-authenticator:
     description: |
       Allows the stock kubectl client to work with Amazon EKS.
