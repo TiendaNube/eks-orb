@@ -25,7 +25,7 @@ jobs:
           namespace: core
           command: ls
       - eks/helmfile-client:
-          namespace: core
+          cluster-name: staging
           command: --version
       - eks/kubectl:
           namespace: core
