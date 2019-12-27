@@ -2,9 +2,49 @@ version: 2.1
 
 orbs:
   orb-tools: circleci/orb-tools@9.0.0
+  eks: tiendanube/eks@<<pipeline.parameters.dev-orb-version>>
+
+parameters:
+  run-integration-tests:
+    type: boolean
+    default: true
+  dev-orb-version:
+    type: string
+    default: "dev:alpha"
+
+jobs:
+  integration-tests-eks-orb:
+    executor: orb-tools/ubuntu
+    steps:
+      - checkout
+      - eks/update-kubeconfig-with-authenticator:
+          label: Testing update-kubeconfig-with-authenticator
+          aws-region: us-west-2
+          cluster-name: staging
+      - eks/helm-client:
+          namespace: core
+          command: ls
+      - eks/helmfile-client:
+          namespace: core
+          command: --version
+      - eks/kubectl:
+          namespace: core
+          command: get
+          args: pods
+
+      - run:
+          name: Testing commands
+          command: |
+              aws-iam-authenticator version
+              aws --version
+              kubectl version
+              helm version
+              helmfile --version
+              terraform --version
 
 workflows:
   btd:
+    unless: << pipeline.parameters.run-integration-tests >>
     jobs:
       - orb-tools/lint:
           name: lint
@@ -21,3 +61,31 @@ workflows:
           context: orbs
           requires:
             - pack
+
+      - orb-tools/trigger-integration-tests-workflow:
+          name: trigger-integration-dev
+          requires:
+            - publish-dev
+
+  integration-tests_prod-release:
+    when: << pipeline.parameters.run-integration-tests >>
+    jobs:
+
+      - integration-tests-eks-orb
+
+      # publish a semver version of the orb. relies on
+      # the commit subject containing the text "[semver:patch|minor|major|skip]"
+      # as that will determine whether a patch, minor or major
+      # version will be published or if publishing should
+      # be skipped.
+      # e.g. [semver:patch] will cause a patch version to be published.
+      - orb-tools/dev-promote-prod-from-commit-subject:
+          orb-name: tiendanube/eks
+          add-pr-comment: false
+          publish-version-tag: false
+          fail-if-semver-not-indicated: false
+          requires:
+            - integration-tests-eks-orb
+          filters:
+            branches:
+              only: master
