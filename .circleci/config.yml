@@ -70,7 +70,8 @@ workflows:
     when: << pipeline.parameters.run-integration-tests >>
     jobs:
 
-      - integration-tests-eks-orb
+      - integration-tests-eks-orb:
+          context: microservices
 
       # publish a semver version of the orb. relies on
       # the commit subject containing the text "[semver:patch|minor|major|skip]"
