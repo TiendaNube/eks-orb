@@ -14,11 +14,10 @@ parameters:
 
 jobs:
   integration-tests-eks-orb:
-    executor: orb-tools/ubuntu
+    executor: eks/default
     steps:
       - checkout
       - eks/update-kubeconfig-with-authenticator:
-          label: Testing update-kubeconfig-with-authenticator
           aws-region: us-west-2
           cluster-name: staging
       - eks/helm-client:
