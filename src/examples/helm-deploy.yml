@@ -2,7 +2,7 @@ description: EKS Helm Deploy
 usage:
   version: 2.1
   orbs:
-    eks: tiendanube/eks@1.0.0
+    eks: tiendanube/eks@1.1.0
   workflows:
     deploy:
       jobs:
@@ -13,4 +13,5 @@ usage:
             values-file: values.yaml
             namespace: default
             chart: stable/chart
+            chart-version: latest
             image-tag: ${CIRCLE_SHA1:0:7}
