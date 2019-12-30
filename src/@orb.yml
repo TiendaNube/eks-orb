@@ -2,5 +2,5 @@ version: 2.1
 
 description: An orb for working with Amazon EKS
 
-orbs:
-  aws-eks: circleci/aws-eks@0.1.0
+display:
+  home_url: https://github.com/TiendaNube/eks-orb

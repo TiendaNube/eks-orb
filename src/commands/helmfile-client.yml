@@ -1,0 +1,48 @@
+description: |
+  Allows use the helmfile client to work with Amazon EKS.
+
+parameters:
+  label:
+    description: |
+      Description the command line.
+    type: string
+    default: "Helmfile client command"
+  cluster-name:
+    description: EKS cluster name
+    type: string
+  env:
+    description: Specify the environment name.
+    type: string
+    default: ""
+  command:
+    description: |
+      Available Commands in the helmfile client
+    type: string
+  args:
+    description: Arguments to the command selected
+    type: string
+    default: ""
+  working_dir:
+    description: |
+      In which directory to run the steps. Default: ~/project
+    type: string
+    default: "~/project"
+
+steps:
+  - run:
+      name: "<< parameters.label >>"
+      working_directory: "<< parameters.working_dir >>"
+      command: |
+        CLUSTER_NAME="<< parameters.cluster-name >>"
+        ENV_NAME="<< parameters.env >>"
+        COMMAND="<< parameters.command >>"
+
+        if [ -n "${ENV_NAME}" ]; then
+          set -- "$@" -e "${ENV_NAME}"
+        fi
+        if [ -n "${COMMAND}" ]; then
+          set -- "$@" "${COMMAND}"
+        fi
+
+        EKS_ENV="${CLUSTER_NAME}" helmfile "$@" \
+                                  <<#parameters.args>><<parameters.args>><</parameters.args>>
