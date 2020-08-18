@@ -1,0 +1,62 @@
+description: |
+      Get the status of the rollout.
+      This can only be used for resource types that are valid
+      for usage with `kubectl rollout` subcommands.
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: Executor to use for this job
+    type: executor
+    default: default
+  app-name:
+    type: string
+    description: |
+      The name of the application to be rolled back
+    default: ''
+  cluster-name:
+    type: string
+    description: EKS cluster name
+    default: ''
+  region:
+    type: string
+    description: |
+      AWS region where the eks cluster is located
+    default: ''
+  namespace:
+    type: string
+    description: |
+      Namespace where the chart will be installed
+    default: ''
+  resource-name:
+    type: string
+    description: |
+      The name of the resource to be used.
+      Example: deployment, daemonset and statefulset
+    default: 'deployment'
+  watch:
+    default: true
+    description: |
+      Whether to watch the status of the latest rollout until it's done.
+    type: boolean
+  timeout:
+    default: '5m'
+    description: >
+      The length of time to wait before ending the watch, zero means never.
+
+      Any other values should contain a corresponding time unit (e.g. 1s, 2m,
+      3h).
+    type: string
+
+steps:
+  - update-kubeconfig-with-authenticator:
+      cluster-name: << parameters.cluster-name >>
+      aws-region: << parameters.region >>
+
+  - rollout-status:
+      app-name: << parameters.app-name >>
+      namespace: << parameters.namespace >>
+      resource-name: << parameters.resource-name >>
+      watch: << parameters.watch >>
+      timeout: << parameters.timeout >>

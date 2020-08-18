@@ -1,0 +1,129 @@
+description: |
+  Annotations
+
+parameters:
+  app-name:
+    type: string
+    description: |
+      The name of the application
+    default: ''
+  namespace:
+    default: ''
+    description: |
+      The kubernetes namespace that should be used.
+    type: string
+  resource-name:
+    default: 'deployment'
+    description: |
+      The name of the resource to be used.
+      Example: deployment, daemonset and statefulset
+    type: string
+  set-name:
+    type: string
+    description: |
+      Example: kubernetes\.io\/change-cause
+    default: ' '
+  set-value:
+    type: string
+    description: |
+      The value that is stored in the annotation.
+      This isn't necessary when get-current-value param it's true.
+    default: ''
+  set-path-annotation:
+    type: string
+    description: |
+      Path annotation
+      Example: .spec.template.metadata.annotations.
+    default: '.spec.template.metadata.annotations.'
+  get-current-name:
+    type: string
+    description: |
+      Example: kubernetes\.io\/current-tag
+    default: ' '
+  get-current-value:
+    type: boolean
+    description: |
+      Sets the annotation value according to the current-name parameter.
+    default: false
+  overwrite:
+    type: boolean
+    description: |
+      If true, allow annotations to be overwritten, otherwise reject annotation updates that
+      overwrite existing annotations.
+    default: true
+  record:
+    type: boolean
+    description: |
+      Record current kubectl command in the resource annotation. If set to false, do not record the
+      command. If set to true, record the command. If not set, default to updating the existing annotation value only if one
+      already exists.
+    default: false
+steps:
+  - run:
+      name: Adding annotation
+      command: >
+        RESOURCE_NAME="<< parameters.resource-name >>"
+        APP_NAME="<< parameters.app-name >>"
+        NAMESPACE="<< parameters.namespace >>"
+        ANNOTATION_NAME="<< parameters.set-name >>"
+        ANNOTATION_VALUE="<< parameters.set-value >>"
+        CURRENT_NAME="<< parameters.get-current-name >>"
+        CURRENT_VALUE="<< parameters.get-current-value >>"
+        PATH_ANNOTATION="<< parameters.set-path-annotation >>"
+        OVERWRITE="<< parameters.overwrite >>"
+        RECORD="<< parameters.record >>"
+
+        if [ "${OVERWRITE}" == "true" ];
+        then
+          set -- "$@" --overwrite
+        fi
+
+        if [ "${RECORD}" == "true" ];
+        then
+          set -- "$@" --record
+        fi
+
+        if [ -n "${RESOURCE_NAME}" ];
+        then
+          set -- "$@" "${RESOURCE_NAME}"
+        fi
+
+        if [ -n "${APP_NAME}" ];
+        then
+          set -- "$@" "${APP_NAME}"
+        fi
+
+        if [ "${CURRENT_VALUE}" == "true" ];
+        then
+
+          CURRENT_REVISION=$(
+                              kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
+                              -o=jsonpath="{${PATH_ANNOTATION}${CURRENT_NAME}}" \
+                              --ignore-not-found
+                            )
+
+          if [[ -z ${CURRENT_REVISION} ]];
+          then
+            CURRENT_REVISION="1"
+          fi
+
+          set -- "$@" ${ANNOTATION_NAME}="${CURRENT_REVISION}"
+
+        else
+
+          if [ -z "${ANNOTATION_NAME}" ] || [ -z "${ANNOTATION_VALUE}" ];
+          then
+            echo "Command failed :(";
+            echo "Annotation name or value not found!";
+            exit 1
+          else
+            set -- "$@" ${ANNOTATION_NAME}="${ANNOTATION_VALUE}"
+          fi
+
+        fi
+
+        if [ -n "${NAMESPACE}" ]; then
+          set -- "$@" --namespace="${NAMESPACE}"
+        fi
+
+        kubectl annotate "$@"
