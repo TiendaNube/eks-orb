@@ -120,6 +120,26 @@ workflows:
         github-user-email: email@company.com
 ```
 
+- Revert commit
+
+```yaml
+version: 2.1
+orbs:
+  eks: tiendanube/eks@1.3.0
+workflows:
+  deploy:
+    jobs:
+    - eks/revert-commit:
+        name: Job name
+        checkout: false
+        branch-name: ${CIRCLE_BRANCH}
+        github-sha1: ${CIRCLE_SHA1:0:7}
+        github-token: ${GITHUB_TOKEN}
+        github-repo: github.com/company/branch.git
+        github-user-name: ${CIRCLE_USERNAME}
+        github-user-email: email@company.com
+```
+
 - AWS with Authenticator to Kubernetes
 
 ```yaml
