@@ -154,6 +154,7 @@ steps:
       condition: << parameters.revert-commit >>
       steps:
         - revert-commit:
+            checkout: << parameters.checkout >>
             branch-name: << parameters.branch-name >>
             commit-sha1: << parameters.github-sha1 >>
             github-token: << parameters.github-token >>

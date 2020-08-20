@@ -2,7 +2,7 @@ description: Deploy to EKS
 usage:
   version: 2.1
   orbs:
-    eks: tiendanube/eks@1.1.0
+    eks: tiendanube/eks@1.3.0
   workflows:
     deploy:
       jobs:

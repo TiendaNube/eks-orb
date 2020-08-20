@@ -1,4 +1,4 @@
-# eks-orb
+# EKS Orb
 Orb for installing the tools to interact with Amazon Elastic Container Service for Kubernetes (EKS) from within a
 CircleCI build job.
 
@@ -23,7 +23,7 @@ For more information on how to properly set up environment variables on CircleCI
 ```yaml
 version: 2.1
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 workflows:
   deploy:
     jobs:
@@ -42,7 +42,7 @@ workflows:
 ```yaml
 version: 2.1
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 workflows:
   deploy:
     jobs:
@@ -52,9 +52,72 @@ workflows:
           release-name: release-name
           values-file: values.yaml
           namespace: default
-          chart: stable/chart-to-be-installed
+          chart: stable/chart
           chart-version: latest
           image-tag: ${CIRCLE_SHA1:0:7}
+          resource-name: deployment
+          rollout-status: true
+          rollout-status-watch: true
+          rollout-status-timeout: 5m
+```
+
+- Annotations
+
+```yaml
+version: 2.1
+orbs:
+  eks: tiendanube/eks@1.3.0
+workflows:
+  deploy:
+    jobs:
+      - eks/annotation:
+          app-name: Application name
+          namespace: Namespace
+          resource-name: deployment # deployment, statefulset or daemonset
+          set-name: "kubernetes.io/previous-tag"
+          get-current-name: kubernetes\.io\/current-tag
+          set-path-annotation: .spec.template.metadata.annotations. # .metadata.annotations. -> StatefulSet
+          get-current-value: true # get value from kubernetes.io/current-tag
+
+      - eks/annotation:
+          app-name: Application name
+          namespace: Namespace
+          resource-name: deployment # deployment, statefulset or daemonset
+          set-name: "kubernetes.io/current-tag"
+          set-value: "my value"
+```
+- Rollback
+
+```yaml
+version: 2.1
+orbs:
+  eks: tiendanube/eks@1.3.0
+workflows:
+  deploy:
+    jobs:
+      - eks/rollback:
+        name: Job Name
+        checkout: false
+        app-name: Application name
+        cluster-name: core
+        region: Region
+        namespace: Namespace
+        resource-name: deployment # deployment, statefulset or daemonset
+        restricted: true
+        get-current-annotation-name: kubernetes\.io\/current-tag
+        get-current-annotation-value: ${CIRCLE_SHA1:0:7}
+        get-previous-annotation-name: kubernetes\.io\/previous-tag
+        set-path-annotation: .spec.template.metadata.annotations. # .metadata.annotations. -> StatefulSet
+        rollout-status: true
+        rollout-status-watch: true
+        rollout-status-timeout: 5m
+        revert-commit: false
+        branch-name: ${CIRCLE_BRANCH}
+        github-sha1: ${CIRCLE_SHA1:0:7}
+        github-token: ${GITHUB_TOKEN}
+        github-repo: github.com/company/branch.git
+        github-user-name: ${CIRCLE_USERNAME}
+        github-user-email: email@company.com
 ```
 
 - AWS with Authenticator to Kubernetes
@@ -63,7 +126,7 @@ workflows:
 version: 2.1
 
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 
 workflows:
   deploy:
@@ -86,7 +149,7 @@ workflows:
 version: 2.1
 
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 
 workflows:
   deploy:
@@ -105,7 +168,7 @@ workflows:
 version: 2.1
 
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 
 workflows:
   deploy:
@@ -125,7 +188,7 @@ Example use of the helmfile [below](#helmfile):
 version: 2.1
 
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 
 workflows:
   deploy:
@@ -144,7 +207,7 @@ workflows:
 version: 2.1
 
 orbs:
-  eks: tiendanube/eks@1.1.0
+  eks: tiendanube/eks@1.3.0
 
 jobs:
   prepare-deployment:

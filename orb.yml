@@ -244,7 +244,7 @@ commands:
                     Branch name where it will be executed the command revert
                 type: string
             checkout:
-                default: true
+                default: false
                 description: |
                     Boolean for whether or not to checkout as a first step. Default is true.
                 type: boolean
@@ -294,6 +294,18 @@ commands:
                     git config user.name "${GITHUB_USER_NAME}"
                     git commit -m "Revert to ${COMMIT_SHA1:0:7} [ Skip CI: ${CIRCLE_BUILD_URL} ]"
                     git push https://${GITHUB_TOKEN}@${GITHUB_REPO} ${BRANCH_NAME}
+
+                    # cd /tmp
+                    # git clone --depth 50 https://${GITHUB_TOKEN}@${GITHUB_REPO} /tmp/${BRANCH_NAME}
+                    # cd /tmp/${BRANCH_NAME}
+                    # git rebase origin master
+                    # git checkout ${BRANCH_NAME}
+                    # git reset --hard ${COMMIT_SHA1}
+                    # git revert -n --no-edit ${COMMIT_SHA1}
+                    # # git config user.email "${GITHUB_USER_EMAIL}"
+                    # # git config user.name "${GITHUB_USER_NAME}"
+                    # git commit -m "Revert to ${COMMIT_SHA1} [ Skip CI: ${GITHUB_USER_NAME} ]"
+                    # git push -f origin ${BRANCH_NAME}
                 name: Reverting a commit...
     rollback:
         description: |
@@ -875,6 +887,56 @@ jobs:
                       helm status << parameters.release-name-prefix >>-$(basename $file)
                     done
                 name: Check the release status
+    revert-commit:
+        description: |
+            Revert commit in Github
+        executor: << parameters.executor >>
+        parameters:
+            branch-name:
+                default: ${CIRCLE_BRANCH}
+                description: |
+                    Branch name where it will be executed the command revert
+                type: string
+            checkout:
+                default: true
+                description: |
+                    Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            github-repo:
+                default: ""
+                description: |
+                    Repository in Github.
+                    Example: github.com/company/repo.git
+                type: string
+            github-sha1:
+                default: ""
+                description: Github token
+                type: string
+            github-token:
+                default: ""
+                description: Github token
+                type: string
+            github-user-email:
+                default: ""
+                description: Github email
+                type: string
+            github-user-name:
+                default: ${CIRCLE_USERNAME}
+                description: Github username
+                type: string
+        steps:
+            - revert-commit:
+                branch-name: << parameters.branch-name >>
+                checkout: << parameters.checkout >>
+                commit-sha1: << parameters.github-sha1 >>
+                github-repo: << parameters.github-repo >>
+                github-token: << parameters.github-token >>
+                github-user-email: << parameters.github-user-email >>
+                github-user-name: << parameters.github-user-name >>
     rollback:
         description: |
             Rollback a deployment, statefulset or daemonset resource.
@@ -1026,6 +1088,7 @@ jobs:
                 steps:
                     - revert-commit:
                         branch-name: << parameters.branch-name >>
+                        checkout: << parameters.checkout >>
                         commit-sha1: << parameters.github-sha1 >>
                         github-repo: << parameters.github-repo >>
                         github-token: << parameters.github-token >>
