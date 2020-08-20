@@ -1,32 +1,34 @@
 description: Rollback to EKS
+
 usage:
   version: 2.1
+
   orbs:
-    eks: tiendanube/eks@1.3.0
+    eks: tiendanube/eks@x.y.z
+
   workflows:
-    deploy:
+    your-workflow:
       jobs:
         - eks/rollback:
-          name: Job Name
-          checkout: false
-          app-name: Application name
-          cluster-name: core
-          region: Region
-          namespace: Namespace
-          resource-name: deployment # deployment, statefulset or daemonset
-          restricted: true
-          get-current-annotation-name: kubernetes\.io\/current-tag
-          get-current-annotation-value: ${CIRCLE_SHA1:0:7}
-          get-previous-annotation-name: kubernetes\.io\/previous-tag
-          set-path-annotation: .spec.template.metadata.annotations. # .metadata.annotations. -> StatefulSet
-          rollout-status: true
-          rollout-status-watch: true
-          rollout-status-timeout: 5m
-          revert-commit: false
-          branch-name: ${CIRCLE_BRANCH}
-          github-sha1: ${CIRCLE_SHA1:0:7}
-          github-token: ${GITHUB_TOKEN}
-          github-repo: github.com/company/branch.git
-          github-user-name: ${CIRCLE_USERNAME}
-          github-user-email: email@company.com
-
+            name: Job Name
+            checkout: false
+            app-name: Application Name
+            cluster-name: Cluster Name
+            region: Region
+            namespace: Namespace
+            resource-name: deployment # deployment, statefulset or daemonset
+            restricted: true
+            get-current-annotation-name: kubernetes\.io\/current-tag
+            get-current-annotation-value: ${CIRCLE_SHA1:0:7}
+            get-previous-annotation-name: kubernetes\.io\/previous-tag
+            set-path-annotation: .spec.template.metadata.annotations. # .metadata.annotations. -> StatefulSet
+            rollout-status: true
+            rollout-status-watch: true
+            rollout-status-timeout: 5m
+            revert-commit: false
+            branch-name: ${CIRCLE_BRANCH}
+            github-sha1: ${CIRCLE_SHA1:0:7}
+            github-token: ${GITHUB_TOKEN}
+            github-repo: github.com/company/branch.git
+            github-user-name: ${CIRCLE_USERNAME}
+            github-user-email: email@company.com
