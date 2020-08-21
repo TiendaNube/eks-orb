@@ -60,15 +60,3 @@ steps:
           git config user.name "${GITHUB_USER_NAME}"
           git commit -m "Revert to ${COMMIT_SHA1:0:7} [ Skip CI: ${CIRCLE_BUILD_URL} ]"
           git push https://${GITHUB_TOKEN}@${GITHUB_REPO} ${BRANCH_NAME}
-
-          # cd /tmp
-          # git clone --depth 50 https://${GITHUB_TOKEN}@${GITHUB_REPO} /tmp/${BRANCH_NAME}
-          # cd /tmp/${BRANCH_NAME}
-          # git rebase origin master
-          # git checkout ${BRANCH_NAME}
-          # git reset --hard ${COMMIT_SHA1}
-          # git revert -n --no-edit ${COMMIT_SHA1}
-          # # git config user.email "${GITHUB_USER_EMAIL}"
-          # # git config user.name "${GITHUB_USER_NAME}"
-          # git commit -m "Revert to ${COMMIT_SHA1} [ Skip CI: ${GITHUB_USER_NAME} ]"
-          # git push -f origin ${BRANCH_NAME}

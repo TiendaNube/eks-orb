@@ -294,18 +294,6 @@ commands:
                     git config user.name "${GITHUB_USER_NAME}"
                     git commit -m "Revert to ${COMMIT_SHA1:0:7} [ Skip CI: ${CIRCLE_BUILD_URL} ]"
                     git push https://${GITHUB_TOKEN}@${GITHUB_REPO} ${BRANCH_NAME}
-
-                    # cd /tmp
-                    # git clone --depth 50 https://${GITHUB_TOKEN}@${GITHUB_REPO} /tmp/${BRANCH_NAME}
-                    # cd /tmp/${BRANCH_NAME}
-                    # git rebase origin master
-                    # git checkout ${BRANCH_NAME}
-                    # git reset --hard ${COMMIT_SHA1}
-                    # git revert -n --no-edit ${COMMIT_SHA1}
-                    # # git config user.email "${GITHUB_USER_EMAIL}"
-                    # # git config user.name "${GITHUB_USER_NAME}"
-                    # git commit -m "Revert to ${COMMIT_SHA1} [ Skip CI: ${GITHUB_USER_NAME} ]"
-                    # git push -f origin ${BRANCH_NAME}
                 name: Reverting a commit...
     rollback:
         description: |
@@ -397,8 +385,6 @@ commands:
 
                       _PATH_ANNOTATION=${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME} ###//\\/
 
-                      echo $_PATH_ANNOTATION
-
                       CHECK_ANNOTATION_VALUE=$(
                                           kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
                                           -o=jsonpath="{${_PATH_ANNOTATION}}" \
@@ -434,9 +420,6 @@ commands:
                     PATH_CURRENT_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME}"
                     PATH_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${PREVIOUS_ANNOTATION_NAME}"
 
-                    echo "PATH_ANNOTATION_RESOURCE: ${PATH_ANNOTATION_RESOURCE}"
-                    echo "PATH_CURRENT_ANNOTATION_RESOURCE: ${PATH_CURRENT_ANNOTATION_RESOURCE}"
-
                     if [ -z "${PREVIOUS_ANNOTATION_VALUE}" ];
                     then
 
@@ -452,21 +435,12 @@ commands:
                       fi
                     fi
 
-                    echo "PREVIOUS_ANNOTATION_VALUE: ${PREVIOUS_ANNOTATION_VALUE}"
-
                     JSONPATH="{range .items[?(@.metadata.labels.app == '${APP_NAME}')]}{.revision}{'\t'}{${PATH_CURRENT_ANNOTATION_RESOURCE}}{'\n'}{end}"
-
-                    echo ${JSONPATH}
-
-                    # kubectl -n ${NAMESPACE} get controllerrevisions \
-                    #                     --sort-by='{.revision}' -o jsonpath="${JSONPATH}"
 
                     ROLLBACK_REVISION=$(kubectl --namespace=${NAMESPACE} get controllerrevisions \
                                         --sort-by='{.revision}' -o jsonpath="${JSONPATH}" \
                                         | grep "${PREVIOUS_ANNOTATION_VALUE}" | tail -1 | awk '{ print $1 }'
                                       );
-
-                    echo "ROLLBACK_REVISION: ${ROLLBACK_REVISION}"
 
                     if [ -z "${ROLLBACK_REVISION}" ];
                     then

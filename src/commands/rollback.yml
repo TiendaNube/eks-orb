@@ -91,8 +91,6 @@ steps:
 
             _PATH_ANNOTATION=${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME} ###//\\/
 
-            echo $_PATH_ANNOTATION
-
             CHECK_ANNOTATION_VALUE=$(
                                 kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
                                 -o=jsonpath="{${_PATH_ANNOTATION}}" \
@@ -128,9 +126,6 @@ steps:
           PATH_CURRENT_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME}"
           PATH_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${PREVIOUS_ANNOTATION_NAME}"
 
-          echo "PATH_ANNOTATION_RESOURCE: ${PATH_ANNOTATION_RESOURCE}"
-          echo "PATH_CURRENT_ANNOTATION_RESOURCE: ${PATH_CURRENT_ANNOTATION_RESOURCE}"
-
           if [ -z "${PREVIOUS_ANNOTATION_VALUE}" ];
           then
 
@@ -146,21 +141,12 @@ steps:
             fi
           fi
 
-          echo "PREVIOUS_ANNOTATION_VALUE: ${PREVIOUS_ANNOTATION_VALUE}"
-
           JSONPATH="{range .items[?(@.metadata.labels.app == '${APP_NAME}')]}{.revision}{'\t'}{${PATH_CURRENT_ANNOTATION_RESOURCE}}{'\n'}{end}"
-
-          echo ${JSONPATH}
-
-          # kubectl -n ${NAMESPACE} get controllerrevisions \
-          #                     --sort-by='{.revision}' -o jsonpath="${JSONPATH}"
 
           ROLLBACK_REVISION=$(kubectl --namespace=${NAMESPACE} get controllerrevisions \
                               --sort-by='{.revision}' -o jsonpath="${JSONPATH}" \
                               | grep "${PREVIOUS_ANNOTATION_VALUE}" | tail -1 | awk '{ print $1 }'
                             );
-
-          echo "ROLLBACK_REVISION: ${ROLLBACK_REVISION}"
 
           if [ -z "${ROLLBACK_REVISION}" ];
           then
