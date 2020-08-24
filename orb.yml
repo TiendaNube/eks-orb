@@ -18,6 +18,11 @@ commands:
                 description: |
                     Sets the annotation value according to the current-name parameter.
                 type: boolean
+            ignore-not-found:
+                default: false
+                description: |
+                    If the resource does not exist, ignore it.
+                type: boolean
             namespace:
                 default: ""
                 description: |
@@ -62,7 +67,7 @@ commands:
         steps:
             - run:
                 command: |
-                    RESOURCE_NAME="<< parameters.resource-name >>" APP_NAME="<< parameters.app-name >>" NAMESPACE="<< parameters.namespace >>" ANNOTATION_NAME="<< parameters.set-name >>" ANNOTATION_VALUE="<< parameters.set-value >>" CURRENT_NAME="<< parameters.get-current-name >>" CURRENT_VALUE="<< parameters.get-current-value >>" PATH_ANNOTATION="<< parameters.set-path-annotation >>" OVERWRITE="<< parameters.overwrite >>" RECORD="<< parameters.record >>"
+                    RESOURCE_NAME="<< parameters.resource-name >>" APP_NAME="<< parameters.app-name >>" NAMESPACE="<< parameters.namespace >>" ANNOTATION_NAME="<< parameters.set-name >>" ANNOTATION_VALUE="<< parameters.set-value >>" CURRENT_NAME="<< parameters.get-current-name >>" CURRENT_VALUE="<< parameters.get-current-value >>" PATH_ANNOTATION="<< parameters.set-path-annotation >>" OVERWRITE="<< parameters.overwrite >>" RECORD="<< parameters.record >>" IGNORE_NOT_FOUND="<< parameters.ignore-not-found >>"
                     if [ "${OVERWRITE}" == "true" ]; then
                       set -- "$@" --overwrite
                     fi
@@ -105,7 +110,11 @@ commands:
                     if [ -n "${NAMESPACE}" ]; then
                       set -- "$@" --namespace="${NAMESPACE}"
                     fi
-                    kubectl annotate "$@"
+                    if [ "${IGNORE_NOT_FOUND}" == "true" ]; then
+                      kubectl annotate "$@" || true
+                    else
+                      kubectl annotate "$@"
+                    fi
                 name: Adding annotation
     helm-client:
         description: |
@@ -820,6 +829,12 @@ jobs:
                 default: null
                 description: Additional helm chart repository
                 type: string
+            set-path-annotation:
+                default: .spec.template.metadata.annotations.
+                description: |
+                    Path annotation
+                    Example: .spec.template.metadata.annotations.
+                type: string
             values-file:
                 description: Helm values file
                 type: string
@@ -840,12 +855,14 @@ jobs:
                 app-name: << parameters.release-name >>
                 get-current-name: kubernetes\.io\/current-tag
                 get-current-value: true
+                ignore-not-found: true
                 namespace: << parameters.namespace >>
                 resource-name: << parameters.resource-name >>
                 set-name: kubernetes.io/previous-tag
-                set-path-annotation: .metadata.annotations.
+                set-path-annotation: << parameters.set-path-annotation >>
             - annotation:
                 app-name: << parameters.release-name >>
+                ignore-not-found: true
                 namespace: << parameters.namespace >>
                 resource-name: << parameters.resource-name >>
                 set-name: kubernetes.io/current-tag
