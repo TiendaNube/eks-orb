@@ -58,6 +58,11 @@ parameters:
       command. If set to true, record the command. If not set, default to updating the existing annotation value only if one
       already exists.
     default: false
+  ignore-not-found:
+    type: boolean
+    description: |
+      If the resource does not exist, ignore it.
+    default: false
 steps:
   - run:
       name: Adding annotation
@@ -72,6 +77,7 @@ steps:
         PATH_ANNOTATION="<< parameters.set-path-annotation >>"
         OVERWRITE="<< parameters.overwrite >>"
         RECORD="<< parameters.record >>"
+        IGNORE_NOT_FOUND="<< parameters.ignore-not-found >>"
 
         if [ "${OVERWRITE}" == "true" ];
         then
@@ -126,4 +132,9 @@ steps:
           set -- "$@" --namespace="${NAMESPACE}"
         fi
 
-        kubectl annotate "$@"
+        if [ "${IGNORE_NOT_FOUND}" == "true" ];
+        then
+          kubectl annotate "$@" || true
+        else
+          kubectl annotate "$@"
+        fi

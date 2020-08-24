@@ -43,6 +43,12 @@ parameters:
       The name of the resource to be used.
       Example: deployment, daemonset and statefulset
     default: 'deployment'
+  set-path-annotation:
+    type: string
+    description: |
+      Path annotation
+      Example: .spec.template.metadata.annotations.
+    default: '.spec.template.metadata.annotations.'
   rollout-status:
     type: boolean
     description: |
@@ -81,8 +87,9 @@ steps:
       resource-name: << parameters.resource-name >>
       set-name: "kubernetes.io/previous-tag"
       get-current-name: kubernetes\.io\/current-tag
-      set-path-annotation: .metadata.annotations.
+      set-path-annotation: << parameters.set-path-annotation >>
       get-current-value: true
+      ignore-not-found: true
 
   - annotation:
       app-name: << parameters.release-name >>
@@ -90,6 +97,7 @@ steps:
       resource-name: << parameters.resource-name >>
       set-name: "kubernetes.io/current-tag"
       set-value: "<< parameters.image-tag >>"
+      ignore-not-found: true
 
   - run:
       name: Upgrade helm chart
