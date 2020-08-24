@@ -1,0 +1,163 @@
+description: |
+  Rollback a deployment, statefulset or daemonset resource.
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: Executor to use for this job
+    type: executor
+    default: default
+  app-name:
+    type: string
+    description: |
+      The name of the application to be rolled back
+    default: ''
+  cluster-name:
+    type: string
+    description: EKS cluster name
+    default: ''
+  region:
+    type: string
+    description: |
+      AWS region where the eks cluster is located
+    default: ''
+  namespace:
+    type: string
+    description: |
+      Namespace where the chart will be installed
+    default: ''
+  resource-name:
+    type: string
+    description: |
+      The name of the resource to be used.
+      Example: deployment, daemonset and statefulset
+    default: 'deployment'
+  get-current-annotation-name:
+    type: string
+    description: |
+      Annotation that will be used as a reference for the rollback
+      Example: kubernetes\.io\/current-tag
+    default: kubernetes\.io\/current-tag
+  get-current-annotation-value:
+    type: string
+    description: |
+      The value that is stored in the annotation that will be used as a reference for the K8S rollback
+    default: ''
+  get-previous-annotation-name:
+    type: string
+    description: |
+      Annotation that will be used as a reference for the rollback
+      Example: kubernetes\.io\/previous-tag
+    default: kubernetes\.io\/previous-tag
+  get-previous-annotation-value:
+    type: string
+    description: |
+      The value that is stored in the annotation that will be used as a reference for the K8S rollback
+    default: ''
+  set-path-annotation:
+    type: string
+    description: |
+      Path annotation
+      Example: .spec.template.metadata.annotations.
+    default: '.spec.template.metadata.annotations.'
+  checkout:
+    type: boolean
+    description: |
+      Boolean for whether or not to checkout as a first step. Default is true.
+    default: true
+  restricted:
+    type: boolean
+    description: |
+      It only allows rollback if the current version is the same in server.
+    default: true
+  rollout-status:
+    type: boolean
+    description: |
+      Get the status of the rollout.
+      This can only be used for resource types that are valid
+      for usage with `kubectl rollout` subcommands.
+    default: true
+  rollout-status-watch:
+    default: true
+    description: |
+      Whether to watch the status of the latest rollout until it's done.
+    type: boolean
+  rollout-status-timeout:
+    default: '5m'
+    description: >
+      The length of time to wait before ending the watch, zero means never.
+      Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+    type: string
+  revert-commit:
+    type: boolean
+    description: |
+      Enables jobs to revert commit on Github. Default is false.
+    default: false
+  branch-name:
+    type: string
+    description: |
+      Branch name where it will be executed the command revert
+    default: '${CIRCLE_BRANCH}'
+  github-sha1:
+    type: string
+    description: Github token
+    default: ''
+  github-token:
+    type: string
+    description: Github token
+    default: ''
+  github-repo:
+    type: string
+    description: |
+      Repository in Github.
+      Example: github.com/company/repo.git
+    default: ''
+  github-user-name:
+    type: string
+    description: Github username
+    default: '${CIRCLE_USERNAME}'
+  github-user-email:
+    type: string
+    description: Github email
+    default: ''
+
+steps:
+  - update-kubeconfig-with-authenticator:
+      cluster-name: << parameters.cluster-name >>
+      aws-region: << parameters.region >>
+
+  - rollback:
+      checkout: << parameters.checkout >>
+      cluster-name: << parameters.cluster-name >>
+      region: << parameters.region >>
+      namespace: << parameters.namespace >>
+      app-name: << parameters.app-name >>
+      resource-name: << parameters.resource-name >>
+      set-path-annotation: << parameters.set-path-annotation >>
+      get-previous-annotation-name: << parameters.get-previous-annotation-name >>
+      get-previous-annotation-value: << parameters.get-previous-annotation-value >>
+      get-current-annotation-name: << parameters.get-current-annotation-name >>
+      get-current-annotation-value: << parameters.get-current-annotation-value >>
+
+  - when:
+      condition: << parameters.rollout-status >>
+      steps:
+        - rollout-status:
+            app-name: << parameters.app-name >>
+            namespace: << parameters.namespace >>
+            resource-name: << parameters.resource-name >>
+            watch: << parameters.rollout-status-watch >>
+            timeout: << parameters.rollout-status-timeout >>
+
+  - when:
+      condition: << parameters.revert-commit >>
+      steps:
+        - revert-commit:
+            checkout: << parameters.checkout >>
+            branch-name: << parameters.branch-name >>
+            commit-sha1: << parameters.github-sha1 >>
+            github-token: << parameters.github-token >>
+            github-repo: << parameters.github-repo >>
+            github-user-email: << parameters.github-user-email >>
+            github-user-name: << parameters.github-user-name >>

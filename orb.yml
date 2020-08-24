@@ -1,426 +1,1206 @@
 commands:
-  helm-client:
-    description: |
-      Allows use the helm client to work with Amazon EKS.
-    parameters:
-      args:
-        default: ""
+    annotation:
         description: |
-          Arguments to the command selected
-        type: string
-      command:
-        description: |
-          Available Commands in the helm client
-        type: string
-      label:
-        default: Helm client command
-        description: |
-          Description the command line.
-        type: string
-      namespace:
-        description: |
-          A specific namespace
-        type: string
-      working_dir:
-        default: ~/project
-        description: |
-          In which directory to run the steps. Default: ~/project
-        type: string
-    steps:
-    - run:
-        command: |
-          NAMESPACE="<< parameters.namespace >>"
-          COMMAND="<< parameters.command >>"
+            Annotations
+        parameters:
+            app-name:
+                default: ""
+                description: |
+                    The name of the application
+                type: string
+            get-current-name:
+                default: ' '
+                description: |
+                    Example: kubernetes\.io\/current-tag
+                type: string
+            get-current-value:
+                default: false
+                description: |
+                    Sets the annotation value according to the current-name parameter.
+                type: boolean
+            namespace:
+                default: ""
+                description: |
+                    The kubernetes namespace that should be used.
+                type: string
+            overwrite:
+                default: true
+                description: |
+                    If true, allow annotations to be overwritten, otherwise reject annotation updates that
+                    overwrite existing annotations.
+                type: boolean
+            record:
+                default: false
+                description: |
+                    Record current kubectl command in the resource annotation. If set to false, do not record the
+                    command. If set to true, record the command. If not set, default to updating the existing annotation value only if one
+                    already exists.
+                type: boolean
+            resource-name:
+                default: deployment
+                description: |
+                    The name of the resource to be used.
+                    Example: deployment, daemonset and statefulset
+                type: string
+            set-name:
+                default: ' '
+                description: |
+                    Example: kubernetes\.io\/change-cause
+                type: string
+            set-path-annotation:
+                default: .spec.template.metadata.annotations.
+                description: |
+                    Path annotation
+                    Example: .spec.template.metadata.annotations.
+                type: string
+            set-value:
+                default: ""
+                description: |
+                    The value that is stored in the annotation.
+                    This isn't necessary when get-current-value param it's true.
+                type: string
+        steps:
+            - run:
+                command: |
+                    RESOURCE_NAME="<< parameters.resource-name >>" APP_NAME="<< parameters.app-name >>" NAMESPACE="<< parameters.namespace >>" ANNOTATION_NAME="<< parameters.set-name >>" ANNOTATION_VALUE="<< parameters.set-value >>" CURRENT_NAME="<< parameters.get-current-name >>" CURRENT_VALUE="<< parameters.get-current-value >>" PATH_ANNOTATION="<< parameters.set-path-annotation >>" OVERWRITE="<< parameters.overwrite >>" RECORD="<< parameters.record >>"
+                    if [ "${OVERWRITE}" == "true" ]; then
+                      set -- "$@" --overwrite
+                    fi
+                    if [ "${RECORD}" == "true" ]; then
+                      set -- "$@" --record
+                    fi
+                    if [ -n "${RESOURCE_NAME}" ]; then
+                      set -- "$@" "${RESOURCE_NAME}"
+                    fi
+                    if [ -n "${APP_NAME}" ]; then
+                      set -- "$@" "${APP_NAME}"
+                    fi
+                    if [ "${CURRENT_VALUE}" == "true" ]; then
 
-          if [ -n "${COMMAND}" ]; then
-            set -- "$@" "${COMMAND}"
-          fi
-          if [ -n "${NAMESPACE}" ]; then
-            set -- "$@" --namespace "${NAMESPACE}"
-          fi
+                      CURRENT_REVISION=$(
+                                          kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
+                                          -o=jsonpath="{${PATH_ANNOTATION}${CURRENT_NAME}}" \
+                                          --ignore-not-found
+                                        )
 
-          helm "$@" \
-          <<#parameters.args>><<parameters.args>><</parameters.args>>
-        name: << parameters.label >>
-        working_directory: << parameters.working_dir >>
-  helmfile-client:
-    description: |
-      Allows use the helmfile client to work with Amazon EKS.
-    parameters:
-      args:
-        default: ""
-        description: Arguments to the command selected
-        type: string
-      cluster-name:
-        description: EKS cluster name
-        type: string
-      command:
-        description: |
-          Available Commands in the helmfile client
-        type: string
-      env:
-        default: ""
-        description: Specify the environment name.
-        type: string
-      label:
-        default: Helmfile client command
-        description: |
-          Description the command line.
-        type: string
-      working_dir:
-        default: ~/project
-        description: |
-          In which directory to run the steps. Default: ~/project
-        type: string
-    steps:
-    - run:
-        command: |
-          CLUSTER_NAME="<< parameters.cluster-name >>"
-          ENV_NAME="<< parameters.env >>"
-          COMMAND="<< parameters.command >>"
+                      if [[ -z ${CURRENT_REVISION} ]];
+                      then
+                        CURRENT_REVISION="1"
+                      fi
 
-          if [ -n "${ENV_NAME}" ]; then
-            set -- "$@" -e "${ENV_NAME}"
-          fi
-          if [ -n "${COMMAND}" ]; then
-            set -- "$@" "${COMMAND}"
-          fi
+                      set -- "$@" ${ANNOTATION_NAME}="${CURRENT_REVISION}"
 
-          EKS_ENV="${CLUSTER_NAME}" helmfile "$@" \
-                                    <<#parameters.args>><<parameters.args>><</parameters.args>>
-        name: << parameters.label >>
-        working_directory: << parameters.working_dir >>
-  kubectl:
-    description: |
-      Allows use the kubectl to work with Amazon EKS.
-    parameters:
-      args:
-        default: ""
+                    else
+
+                      if [ -z "${ANNOTATION_NAME}" ] || [ -z "${ANNOTATION_VALUE}" ];
+                      then
+                        echo "Command failed :(";
+                        echo "Annotation name or value not found!";
+                        exit 1
+                      else
+                        set -- "$@" ${ANNOTATION_NAME}="${ANNOTATION_VALUE}"
+                      fi
+
+                    fi
+                    if [ -n "${NAMESPACE}" ]; then
+                      set -- "$@" --namespace="${NAMESPACE}"
+                    fi
+                    kubectl annotate "$@"
+                name: Adding annotation
+    helm-client:
         description: |
-          Arguments to the command selected
-        type: string
-      command:
+            Allows use the helm client to work with Amazon EKS.
+        parameters:
+            args:
+                default: ""
+                description: |
+                    Arguments to the command selected
+                type: string
+            command:
+                description: |
+                    Available Commands in the helm client
+                type: string
+            label:
+                default: Helm client command
+                description: |
+                    Description the command line.
+                type: string
+            namespace:
+                description: |
+                    A specific namespace
+                type: string
+            working_dir:
+                default: ~/project
+                description: |
+                    In which directory to run the steps. Default: ~/project
+                type: string
+        steps:
+            - run:
+                command: |
+                    NAMESPACE="<< parameters.namespace >>"
+                    COMMAND="<< parameters.command >>"
+
+                    if [ -n "${COMMAND}" ]; then
+                      set -- "$@" "${COMMAND}"
+                    fi
+                    if [ -n "${NAMESPACE}" ]; then
+                      set -- "$@" --namespace "${NAMESPACE}"
+                    fi
+
+                    helm "$@" \
+                    <<#parameters.args>><<parameters.args>><</parameters.args>>
+                name: << parameters.label >>
+                working_directory: << parameters.working_dir >>
+    helmfile-client:
         description: |
-          Available Commands in the kubectl
-        type: string
-      label:
-        default: kubectl command
+            Allows use the helmfile client to work with Amazon EKS.
+        parameters:
+            args:
+                default: ""
+                description: Arguments to the command selected
+                type: string
+            cluster-name:
+                description: EKS cluster name
+                type: string
+            command:
+                description: |
+                    Available Commands in the helmfile client
+                type: string
+            env:
+                default: ""
+                description: Specify the environment name.
+                type: string
+            label:
+                default: Helmfile client command
+                description: |
+                    Description the command line.
+                type: string
+            working_dir:
+                default: ~/project
+                description: |
+                    In which directory to run the steps. Default: ~/project
+                type: string
+        steps:
+            - run:
+                command: |
+                    CLUSTER_NAME="<< parameters.cluster-name >>"
+                    ENV_NAME="<< parameters.env >>"
+                    COMMAND="<< parameters.command >>"
+
+                    if [ -n "${ENV_NAME}" ]; then
+                      set -- "$@" -e "${ENV_NAME}"
+                    fi
+                    if [ -n "${COMMAND}" ]; then
+                      set -- "$@" "${COMMAND}"
+                    fi
+
+                    EKS_ENV="${CLUSTER_NAME}" helmfile "$@" \
+                                              <<#parameters.args>><<parameters.args>><</parameters.args>>
+                name: << parameters.label >>
+                working_directory: << parameters.working_dir >>
+    kubectl:
         description: |
-          Description the command line.
-        type: string
-      namespace:
+            Allows use the kubectl to work with Amazon EKS.
+        parameters:
+            args:
+                default: ""
+                description: |
+                    Arguments to the command selected
+                type: string
+            command:
+                description: |
+                    Available Commands in the kubectl
+                type: string
+            label:
+                default: kubectl command
+                description: |
+                    Description the command line.
+                type: string
+            namespace:
+                description: |
+                    A specific namespace
+                type: string
+            working_dir:
+                default: ~/project
+                description: |
+                    In which directory to run the steps. Default: ~/project
+                type: string
+        steps:
+            - run:
+                command: |
+                    kubectl -n << parameters.namespace >> \
+                      <<#parameters.command>><<parameters.command>><</parameters.command>> \
+                      <<#parameters.args>><<parameters.args>><</parameters.args>>
+                name: << parameters.label >>
+                working_directory: << parameters.working_dir >>
+    revert-commit:
         description: |
-          A specific namespace
-        type: string
-      working_dir:
-        default: ~/project
+            Since this command is possible to perform
+            a commit rollback on the Github of a specified branch.
+        parameters:
+            branch-name:
+                default: ${CIRCLE_BRANCH}
+                description: |
+                    Branch name where it will be executed the command revert
+                type: string
+            checkout:
+                default: false
+                description: |
+                    Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            commit-sha1:
+                default: ${CIRCLE_SHA1:0:7}
+                description: |
+                    The commit SHA1 hash
+                type: string
+            github-repo:
+                default: ' '
+                description: |
+                    Repository in Github.
+                    Example: github.com/company/repo.git
+                type: string
+            github-token:
+                default: ' '
+                description: Github token
+                type: string
+            github-user-email:
+                default: ""
+                description: Github email
+                type: string
+            github-user-name:
+                default: ${CIRCLE_USERNAME}
+                description: Github username
+                type: string
+        steps:
+            - when:
+                condition: << parameters.checkout >>
+                steps:
+                    - checkout
+            - run:
+                command: |
+                    BRANCH_NAME="<< parameters.branch-name >>"
+                    COMMIT_SHA1="<< parameters.commit-sha1 >>"
+                    GITHUB_TOKEN="<< parameters.github-token >>"
+                    GITHUB_REPO="<< parameters.github-repo >>"
+                    GITHUB_USER_NAME="<< parameters.github-user-name >>"
+                    GITHUB_USER_EMAIL="<< parameters.github-user-email >>"
+
+                    cd /tmp
+                    git clone -b ${BRANCH_NAME} --depth 50 https://${GITHUB_TOKEN}@${GITHUB_REPO} ./${BRANCH_NAME}
+                    cd ${BRANCH_NAME}
+                    git reset --hard ${COMMIT_SHA1}
+                    git reset --soft HEAD@{1}
+                    git config user.email "${GITHUB_USER_EMAIL}"
+                    git config user.name "${GITHUB_USER_NAME}"
+                    git commit -m "Revert to ${COMMIT_SHA1:0:7} [ Skip CI: ${CIRCLE_BUILD_URL} ]"
+                    git push https://${GITHUB_TOKEN}@${GITHUB_REPO} ${BRANCH_NAME}
+                name: Reverting a commit...
+    rollback:
         description: |
-          In which directory to run the steps. Default: ~/project
-        type: string
-    steps:
-    - run:
-        command: |
-          kubectl -n << parameters.namespace >> \
-            <<#parameters.command>><<parameters.command>><</parameters.command>> \
-            <<#parameters.args>><<parameters.args>><</parameters.args>>
-        name: << parameters.label >>
-        working_directory: << parameters.working_dir >>
-  update-kubeconfig-with-authenticator:
-    description: |
-      Allows the stock kubectl client to work with Amazon EKS.
-      Installs the AWS CLI, the AWS IAM Authenticator for Kubernetes and
-      updates the kubectl configuration file to use the AWS IAM Authenticator.
-    parameters:
-      aws-profile:
-        default: ""
+            Rollback a deployment, statefulset or daemonset resource.
+        parameters:
+            app-name:
+                default: ""
+                description: |
+                    The name of the application to be rolled back
+                type: string
+            checkout:
+                default: true
+                description: |
+                    Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            cluster-name:
+                default: ""
+                description: EKS cluster name
+                type: string
+            get-current-annotation-name:
+                default: kubernetes\.io\/current-tag
+                description: |
+                    Annotation that will be used as a reference for the rollback
+                    Example: kubernetes\.io\/current-tag
+                type: string
+            get-current-annotation-value:
+                default: ""
+                description: |
+                    The value that is stored in the annotation that will be used as a reference for the rollback
+                type: string
+            get-previous-annotation-name:
+                default: kubernetes\.io\/previous-tag
+                description: |
+                    Annotation that will be used as a reference for the rollback
+                    Example: kubernetes\.io\/previous-tag
+                type: string
+            get-previous-annotation-value:
+                default: ""
+                description: |
+                    The value that is stored in the annotation that will be used as a reference for the rollback
+                type: string
+            namespace:
+                default: ""
+                description: |
+                    Namespace where the chart will be installed
+                type: string
+            region:
+                default: ""
+                description: |
+                    AWS region where the eks cluster is located
+                type: string
+            resource-name:
+                default: deployment
+                description: |
+                    The name of the resource to be used.
+                    Example: deployment, daemonset and statefulset
+                type: string
+            restricted:
+                default: true
+                description: |
+                    It only allows rollback if the current version is the same in server.
+                type: boolean
+            set-path-annotation:
+                default: .spec.template.metadata.annotations.
+                description: |
+                    Path annotation
+                    Example: .spec.template.metadata.annotations.
+                type: string
+        steps:
+            - when:
+                condition: << parameters.checkout >>
+                steps:
+                    - checkout
+            - run:
+                command: |
+                    CLUSTER_NAME="<< parameters.cluster-name >>"
+                    NAMESPACE="<< parameters.namespace >>"
+                    APP_NAME="<< parameters.app-name >>"
+                    RESOURCE_NAME="<< parameters.resource-name >>"
+                    RESTRICTED="<< parameters.restricted >>"
+                    CURRENT_ANNOTATION_NAME="<< parameters.get-current-annotation-name >>"
+                    CURRENT_ANNOTATION_VALUE="<< parameters.get-current-annotation-value >>"
+                    PREVIOUS_ANNOTATION_NAME="<< parameters.get-previous-annotation-name >>"
+                    PREVIOUS_ANNOTATION_VALUE="<< parameters.get-previous-annotation-value >>"
+                    PATH_ANNOTATION_RESOURCE="<< parameters.set-path-annotation >>"
+
+                    if [ "${RESTRICTED}" == "true" ];
+                    then
+
+                      _PATH_ANNOTATION=${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME} ###//\\/
+
+                      CHECK_ANNOTATION_VALUE=$(
+                                          kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
+                                          -o=jsonpath="{${_PATH_ANNOTATION}}" \
+                                          --ignore-not-found
+                                        )
+
+                      if [[ "${CHECK_ANNOTATION_VALUE}" != "${CURRENT_ANNOTATION_VALUE}" ]];
+                      then
+                        echo "The current version on the server is different from the rollback:";
+                        echo "Rollback: ${CURRENT_ANNOTATION_VALUE}"
+                        echo "Server: ${CHECK_ANNOTATION_VALUE}"
+                        exit 1
+                      fi
+
+                        echo "Check okay!"
+                        echo "Rollback: ${CURRENT_ANNOTATION_VALUE}"
+                        echo "Server: ${CHECK_ANNOTATION_VALUE}"
+
+                    fi
+
+                    if [ -n "${RESOURCE_NAME}" ]; then
+                      set -- "$@" "${RESOURCE_NAME}"
+                    fi
+
+                    if [ -n "${APP_NAME}" ]; then
+                      set -- "$@" "${APP_NAME}"
+                    fi
+
+                    if [ -n "${NAMESPACE}" ]; then
+                      set -- "$@" "--namespace=${NAMESPACE}"
+                    fi
+
+                    PATH_CURRENT_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME}"
+                    PATH_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${PREVIOUS_ANNOTATION_NAME}"
+
+                    if [ -z "${PREVIOUS_ANNOTATION_VALUE}" ];
+                    then
+
+                      PREVIOUS_ANNOTATION_VALUE=$(
+                                          kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
+                                          -o=jsonpath="{${PATH_ANNOTATION_RESOURCE}}" \
+                                          --ignore-not-found
+                                        )
+
+                      if [[ -z ${PREVIOUS_ANNOTATION_VALUE} ]];
+                      then
+                        PREVIOUS_ANNOTATION_VALUE="00000000000000"
+                      fi
+                    fi
+
+                    JSONPATH="{range .items[?(@.metadata.labels.app == '${APP_NAME}')]}{.revision}{'\t'}{${PATH_CURRENT_ANNOTATION_RESOURCE}}{'\n'}{end}"
+
+                    ROLLBACK_REVISION=$(kubectl --namespace=${NAMESPACE} get controllerrevisions \
+                                        --sort-by='{.revision}' -o jsonpath="${JSONPATH}" \
+                                        | grep "${PREVIOUS_ANNOTATION_VALUE}" | tail -1 | awk '{ print $1 }'
+                                      );
+
+                    if [ -z "${ROLLBACK_REVISION}" ];
+                    then
+                      echo "Command failed :(";
+                      echo "The revision reported could not be found";
+                      exit 1
+                    else
+                      set -- "$@" --to-revision="${ROLLBACK_REVISION}"
+                    fi
+
+                    kubectl rollout undo "$@"
+
+                    kubectl -n ${NAMESPACE} annotate ${RESOURCE_NAME} ${APP_NAME} \
+                    kubernetes.io/rollback-cause="reverted-from-${CURRENT_ANNOTATION_VALUE}-to-${PREVIOUS_ANNOTATION_VALUE}" \
+                    --record=false --overwrite
+
+                    kubectl -n ${NAMESPACE} annotate ${RESOURCE_NAME} ${APP_NAME} \
+                    ${CURRENT_ANNOTATION_NAME//\\/}="${PREVIOUS_ANNOTATION_VALUE}" \
+                    --record=false --overwrite
+
+                    kubectl -n ${NAMESPACE} annotate ${RESOURCE_NAME} ${APP_NAME} \
+                    ${PREVIOUS_ANNOTATION_NAME//\\/}="${CURRENT_ANNOTATION_VALUE}" \
+                    --record=false --overwrite
+
+                    echo "Annotation Value: ${PREVIOUS_ANNOTATION_VALUE}."
+                name: Application rollback in progress...
+    rollout-status:
         description: |
-          The AWS profile to be used. If not specified, the configured default
-          profile for your AWS CLI installation will be used.
-        type: string
-      aws-region:
-        default: ""
+            Gets the rollout status of a resource.
+        parameters:
+            app-name:
+                default: ""
+                description: |
+                    The name of the application to be rolled back
+                type: string
+            namespace:
+                default: ""
+                description: |
+                    The kubernetes namespace that should be used.
+                type: string
+            resource-name:
+                default: deployment
+                description: |
+                    The name of the resource to be used.
+                    Example: deployment, daemonset and statefulset
+                type: string
+            timeout:
+                default: 5m
+                description: |
+                    The length of time to wait before ending the watch, zero means never.
+                    Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+                type: string
+            watch:
+                default: true
+                description: |
+                    Whether to watch the status of the latest rollout until it's done.
+                type: boolean
+        steps:
+            - run:
+                command: |
+                    RESOURCE_NAME="<< parameters.resource-name >>" APP_NAME="<< parameters.app-name >>" NAMESPACE="<< parameters.namespace >>" WATCH="<< parameters.watch >>" TIMEOUT="<< parameters.timeout >>"
+                    if [ -n "${RESOURCE_NAME}" ]; then
+                      set -- "$@" "${RESOURCE_NAME}"
+                    fi
+                    if [ -n "${APP_NAME}" ]; then
+                      set -- "$@" "${APP_NAME}"
+                    fi
+                    if [ -n "${NAMESPACE}" ]; then
+                      set -- "$@" "--namespace=${NAMESPACE}"
+                    fi
+                    if [ "${WATCH_}" == "true" ]; then
+                      set -- "$@" --watch=true
+                      if [ -n "${TIMEOUT}" ]; then
+                        set -- "$@" "--timeout=${WATCH_TIMEOUT}"
+                      fi
+                    else
+                      set -- "$@" --watch=false
+                    fi
+                    kubectl rollout status "$@"
+                name: The rollout status in progress.
+    update-kubeconfig-with-authenticator:
         description: |
-          The AWS region that the cluster is in. If not specified, the configured default
-          region for your AWS CLI installation will be used.
-        type: string
-      cluster-authentication-role-arn:
-        default: ""
-        description: |
-          To assume a role for cluster authentication, specify an IAM role ARN with
-          this option. For example, if you created a cluster while assuming an IAM
-          role, then you must also assume that role to connect to the cluster the
-          first time.
-        type: string
-      cluster-context-alias:
-        default: ""
-        description: |
-          Alias for the cluster context name. If a value is not specified,
-          the cluster context name will be set to match the cluster ARN.
-        type: string
-      cluster-name:
-        description: |
-          The name of the cluster for which to create a kubeconfig entry.
-        type: string
-      dry-run:
-        default: false
-        description: |
-          Print the merged kubeconfig to stdout instead of writing it to file.
-        type: boolean
-      kubeconfig-file-path:
-        default: ""
-        description: |
-          Specifies a kubeconfig file to append the configuration details to.
-          By default, the configuration is written to the first file path in the
-          KUBECONFIG environment variable (if it is set) or the default kubeconfig
-          path (.kube/config) in your home directory.
-        type: string
-      label:
-        default: Update the kubectl configuration file to use the authenticator
-        description: |
-          Description the command line.
-        type: string
-      verbose:
-        default: false
-        description: |
-          Print more detailed output when writing to the kubeconfig file.
-        type: boolean
-    steps:
-    - run:
-        command: |
-          CLUSTER_NAME="<< parameters.cluster-name >>"
-          AWS_REGION="<< parameters.aws-region >>"
-          AWS_PROFILE="<< parameters.aws-profile >>"
-          KUBECONFIG_FILE_PATH="<< parameters.kubeconfig-file-path >>"
-          ROLE_ARN="<< parameters.cluster-authentication-role-arn >>"
-          CLUSTER_CONTEXT_ALIAS="<< parameters.cluster-context-alias >>"
-          DRY_RUN="<< parameters.dry-run >>"
-          VERBOSE="<< parameters.verbose >>"
-          if [ -n "${CLUSTER_NAME}" ]; then
-            set -- "$@" --name "${CLUSTER_NAME}"
-          fi
-          if [ -n "${AWS_REGION}" ]; then
-            set -- "$@" --region "${AWS_REGION}"
-          fi
-          if [ -n "${AWS_PROFILE}" ]; then
-            set -- "$@" --profile "${AWS_PROFILE}"
-          fi
-          if [ -n "${KUBECONFIG_FILE_PATH}" ]; then
-            set -- "$@" --kubeconfig "${KUBECONFIG_FILE_PATH}"
-          fi
-          if [ -n "${ROLE_ARN}" ]; then
-            set -- "$@" --role-arn "${ROLE_ARN}"
-          fi
-          if [ -n "${CLUSTER_CONTEXT_ALIAS}" ]; then
-            set -- "$@" --alias "${CLUSTER_CONTEXT_ALIAS}"
-          fi
-          if [ "${DRY_RUN}" == "true" ]; then
-            set -- "$@" --dry-run
-          fi
-          if [ "${VERBOSE}" == "true" ]; then
-            set -- "$@" --verbose
-          fi
-          aws eks update-kubeconfig "$@"
-        name: << parameters.label >>
+            Allows the stock kubectl client to work with Amazon EKS.
+            Installs the AWS CLI, the AWS IAM Authenticator for Kubernetes and
+            updates the kubectl configuration file to use the AWS IAM Authenticator.
+        parameters:
+            aws-profile:
+                default: ""
+                description: |
+                    The AWS profile to be used. If not specified, the configured default
+                    profile for your AWS CLI installation will be used.
+                type: string
+            aws-region:
+                default: ""
+                description: |
+                    The AWS region that the cluster is in. If not specified, the configured default
+                    region for your AWS CLI installation will be used.
+                type: string
+            cluster-authentication-role-arn:
+                default: ""
+                description: |
+                    To assume a role for cluster authentication, specify an IAM role ARN with
+                    this option. For example, if you created a cluster while assuming an IAM
+                    role, then you must also assume that role to connect to the cluster the
+                    first time.
+                type: string
+            cluster-context-alias:
+                default: ""
+                description: |
+                    Alias for the cluster context name. If a value is not specified,
+                    the cluster context name will be set to match the cluster ARN.
+                type: string
+            cluster-name:
+                description: |
+                    The name of the cluster for which to create a kubeconfig entry.
+                type: string
+            dry-run:
+                default: false
+                description: |
+                    Print the merged kubeconfig to stdout instead of writing it to file.
+                type: boolean
+            kubeconfig-file-path:
+                default: ""
+                description: |
+                    Specifies a kubeconfig file to append the configuration details to.
+                    By default, the configuration is written to the first file path in the
+                    KUBECONFIG environment variable (if it is set) or the default kubeconfig
+                    path (.kube/config) in your home directory.
+                type: string
+            label:
+                default: Update the kubectl configuration file to use the authenticator
+                description: |
+                    Description the command line.
+                type: string
+            verbose:
+                default: false
+                description: |
+                    Print more detailed output when writing to the kubeconfig file.
+                type: boolean
+        steps:
+            - run:
+                command: |
+                    CLUSTER_NAME="<< parameters.cluster-name >>"
+                    AWS_REGION="<< parameters.aws-region >>"
+                    AWS_PROFILE="<< parameters.aws-profile >>"
+                    KUBECONFIG_FILE_PATH="<< parameters.kubeconfig-file-path >>"
+                    ROLE_ARN="<< parameters.cluster-authentication-role-arn >>"
+                    CLUSTER_CONTEXT_ALIAS="<< parameters.cluster-context-alias >>"
+                    DRY_RUN="<< parameters.dry-run >>"
+                    VERBOSE="<< parameters.verbose >>"
+                    if [ -n "${CLUSTER_NAME}" ]; then
+                      set -- "$@" --name "${CLUSTER_NAME}"
+                    fi
+                    if [ -n "${AWS_REGION}" ]; then
+                      set -- "$@" --region "${AWS_REGION}"
+                    fi
+                    if [ -n "${AWS_PROFILE}" ]; then
+                      set -- "$@" --profile "${AWS_PROFILE}"
+                    fi
+                    if [ -n "${KUBECONFIG_FILE_PATH}" ]; then
+                      set -- "$@" --kubeconfig "${KUBECONFIG_FILE_PATH}"
+                    fi
+                    if [ -n "${ROLE_ARN}" ]; then
+                      set -- "$@" --role-arn "${ROLE_ARN}"
+                    fi
+                    if [ -n "${CLUSTER_CONTEXT_ALIAS}" ]; then
+                      set -- "$@" --alias "${CLUSTER_CONTEXT_ALIAS}"
+                    fi
+                    if [ "${DRY_RUN}" == "true" ]; then
+                      set -- "$@" --dry-run
+                    fi
+                    if [ "${VERBOSE}" == "true" ]; then
+                      set -- "$@" --verbose
+                    fi
+                    aws eks update-kubeconfig "$@"
+                name: << parameters.label >>
 description: An orb for working with Amazon EKS
 display:
-  home_url: https://github.com/TiendaNube/eks-orb
+    home_url: https://github.com/TiendaNube/eks-orb
 examples:
-  deploy:
-    description: Deploy to EKS
-    usage:
-      orbs:
-        eks: tiendanube/eks@1.1.0
-      version: 2.1
-      workflows:
-        deploy:
-          jobs:
-          - eks/deploy:
-              cluster-name: cluster-name
-              region: region
-              steps:
-              - run:
-                  command: |
-                    kubectl apply -f bundle.yml
-                    kubectl apply -f deployment.yml
-  helm-deploy:
-    description: EKS Helm Deploy
-    usage:
-      orbs:
-        eks: tiendanube/eks@1.1.0
-      version: 2.1
-      workflows:
-        deploy:
-          jobs:
-          - eks/helm-deploy:
-              chart: stable/chart
-              chart-version: latest
-              cluster-name: cluster-name
-              image-tag: ${CIRCLE_SHA1:0:7}
-              namespace: default
-              region: aws-region
-              release-name: release-name
-              values-file: values.yaml
+    annotation:
+        description: Annotation to EKS
+        usage:
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            version: 2.1
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/annotation:
+                            app-name: Application name
+                            get-current-name: kubernetes\.io\/current-tag
+                            get-current-value: true
+                            namespace: Namespace
+                            resource-name: deployment
+                            set-name: kubernetes.io/previous-tag
+                            set-path-annotation: .spec.template.metadata.annotations.
+                        - eks/annotation:
+                            app-name: Application name
+                            namespace: Namespace
+                            resource-name: deployment
+                            set-name: kubernetes.io/current-tag
+                            set-value: my value
+    deploy:
+        description: Deploy to EKS
+        usage:
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            version: 2.1
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/deploy:
+                            cluster-name: cluster-name
+                            region: region
+                            steps:
+                                - run:
+                                    command: |
+                                        kubectl apply -f bundle.yml
+                                        kubectl apply -f deployment.yml
+    helm-deploy:
+        description: EKS Helm Deploy
+        usage:
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            version: 2.1
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/helm-deploy:
+                            chart: stable/chart
+                            chart-version: latest
+                            cluster-name: cluster-name
+                            image-tag: ${CIRCLE_SHA1:0:7}
+                            namespace: default
+                            region: aws-region
+                            release-name: release-name
+                            resource-name: deployment
+                            rollout-status: true
+                            rollout-status-timeout: 5m
+                            rollout-status-watch: true
+                            values-file: values.yaml
+    revert-commit:
+        description: Annotation to EKS
+        usage:
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            version: 2.1
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/revert-commit:
+                            branch-name: ${CIRCLE_BRANCH}
+                            checkout: false
+                            github-repo: github.com/company/branch.git
+                            github-sha1: ${CIRCLE_SHA1:0:7}
+                            github-token: ${GITHUB_TOKEN}
+                            github-user-email: email@company.com
+                            github-user-name: ${CIRCLE_USERNAME}
+                            name: Job name
+    rollback:
+        description: Rollback to EKS
+        usage:
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            version: 2.1
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/rollback:
+                            app-name: Application Name
+                            branch-name: ${CIRCLE_BRANCH}
+                            checkout: false
+                            cluster-name: Cluster Name
+                            get-current-annotation-name: kubernetes\.io\/current-tag
+                            get-current-annotation-value: ${CIRCLE_SHA1:0:7}
+                            get-previous-annotation-name: kubernetes\.io\/previous-tag
+                            github-repo: github.com/company/branch.git
+                            github-sha1: ${CIRCLE_SHA1:0:7}
+                            github-token: ${GITHUB_TOKEN}
+                            github-user-email: email@company.com
+                            github-user-name: ${CIRCLE_USERNAME}
+                            name: Job Name
+                            namespace: Namespace
+                            region: Region
+                            resource-name: deployment
+                            restricted: true
+                            revert-commit: false
+                            rollout-status: true
+                            rollout-status-timeout: 5m
+                            rollout-status-watch: true
+                            set-path-annotation: .spec.template.metadata.annotations.
 executors:
-  default:
-    description: CircleCI convenience image for AWS EKS
-    docker:
-    - image: tiendanube/circleci-eks:v1.1.0
+    default:
+        description: CircleCI convenience image for AWS EKS
+        docker:
+            - image: tiendanube/circleci-eks:v1.1.8
 jobs:
-  deploy:
-    description: Authenticate to eks cluster and run the steps provided
-    executor: << parameters.executor >>
-    parameters:
-      cluster-name:
-        description: EKS cluster name
-        type: string
-      executor:
-        default: default
-        description: Executor to use for this job
-        type: executor
-      region:
-        description: AWS region where the eks cluster is located
-        type: string
-      steps:
-        description: Steps to deploy your application (e.g. kubectl apply -f deployment.yml)
-        type: steps
-    steps:
-    - checkout
-    - update-kubeconfig-with-authenticator:
-        aws-region: << parameters.region >>
-        cluster-name: << parameters.cluster-name >>
-    - steps: << parameters.steps >>
-  helm-deploy:
-    description: Deploy the given Helm chart to EKS Cluster
-    executor: << parameters.executor >>
-    parameters:
-      chart:
-        description: Chart that will be installed
-        type: string
-      checkout:
-        default: true
-        description: Boolean for whether or not to checkout as a first step. Default
-          is true.
-        type: boolean
-      cluster-name:
-        description: EKS cluster name
-        type: string
-      executor:
-        default: default
-        description: Executor to use for this job
-        type: executor
-      image-tag:
-        default: ${CIRCLE_SHA1:0:7}
-        description: Which image tag will be installed
-        type: string
-      namespace:
-        description: Namespace where the chart will be installed
-        type: string
-      region:
-        description: AWS region where the eks cluster is located
-        type: string
-      release-name:
-        description: Helm release name
-        type: string
-      s3-chart-repo:
-        default: null
-        description: Additional helm chart repository
-        type: string
-      values-file:
-        description: Helm values file
-        type: string
-    steps:
-    - when:
-        condition: << parameters.checkout >>
+    deploy:
+        description: Authenticate to eks cluster and run the steps provided
+        executor: << parameters.executor >>
+        parameters:
+            cluster-name:
+                description: EKS cluster name
+                type: string
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            region:
+                description: AWS region where the eks cluster is located
+                type: string
+            steps:
+                description: Steps to deploy your application (e.g. kubectl apply -f deployment.yml)
+                type: steps
         steps:
-        - checkout
-    - update-kubeconfig-with-authenticator:
-        aws-region: << parameters.region >>
-        cluster-name: << parameters.cluster-name >>
-    - when:
-        condition: << parameters.s3-chart-repo >>
-        name: Add additional helm repo
+            - checkout
+            - update-kubeconfig-with-authenticator:
+                aws-region: << parameters.region >>
+                cluster-name: << parameters.cluster-name >>
+            - steps: << parameters.steps >>
+    helm-deploy:
+        description: Deploy the given Helm chart to EKS Cluster
+        executor: << parameters.executor >>
+        parameters:
+            chart:
+                description: Chart that will be installed
+                type: string
+            checkout:
+                default: true
+                description: Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            cluster-name:
+                description: EKS cluster name
+                type: string
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            image-tag:
+                default: ${CIRCLE_SHA1:0:7}
+                description: Which image tag will be installed
+                type: string
+            namespace:
+                description: Namespace where the chart will be installed
+                type: string
+            region:
+                description: AWS region where the eks cluster is located
+                type: string
+            release-name:
+                description: Helm release name
+                type: string
+            resource-name:
+                default: deployment
+                description: |
+                    The name of the resource to be used.
+                    Example: deployment, daemonset and statefulset
+                type: string
+            rollout-status:
+                default: true
+                description: |
+                    Get the status of the rollout.
+                    This can only be used for resource types that are valid
+                    for usage with `kubectl rollout` subcommands.
+                type: boolean
+            rollout-status-timeout:
+                default: 5m
+                description: |
+                    The length of time to wait before ending the watch, zero means never. Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+                type: string
+            rollout-status-watch:
+                default: true
+                description: |
+                    Whether to watch the status of the latest rollout until it's done.
+                type: boolean
+            s3-chart-repo:
+                default: null
+                description: Additional helm chart repository
+                type: string
+            values-file:
+                description: Helm values file
+                type: string
         steps:
-        - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo
-            >>/
-    - run:
-        command: |
-          helm upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --namespace << parameters.namespace >> << parameters.chart >>
-        name: Upgrade helm chart
-    - run:
-        command: |
-          sleep 10
-          helm status << parameters.release-name >>
-        name: Check the release status
-  helm-deploy-multi:
-    description: Deploy the given Helm chart to EKS Cluster multiple times
-    executor: << parameters.executor >>
-    parameters:
-      chart:
-        description: Chart that will be installed
-        type: string
-      checkout:
-        default: true
-        description: Boolean for whether or not to checkout as a first step. Default
-          is true.
-        type: boolean
-      cluster-name:
-        description: EKS cluster name
-        type: string
-      executor:
-        default: default
-        description: Executor to use for this job
-        type: executor
-      image-tag:
-        default: ${CIRCLE_SHA1:0:7}
-        description: Which image tag will be installed
-        type: string
-      namespace:
-        description: Namespace where the chart will be installed
-        type: string
-      region:
-        description: AWS region where the eks cluster is located
-        type: string
-      release-name-prefix:
-        description: Prefix for the release name
-        type: string
-      s3-chart-repo:
-        default: null
-        description: Additional helm chart repository
-        type: string
-      values-files-dir:
-        description: Directory containing all helm values files
-        type: string
-    steps:
-    - when:
-        condition: << parameters.checkout >>
+            - when:
+                condition: << parameters.checkout >>
+                steps:
+                    - checkout
+            - update-kubeconfig-with-authenticator:
+                aws-region: << parameters.region >>
+                cluster-name: << parameters.cluster-name >>
+            - when:
+                condition: << parameters.s3-chart-repo >>
+                name: Add additional helm repo
+                steps:
+                    - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+            - annotation:
+                app-name: << parameters.release-name >>
+                get-current-name: kubernetes\.io\/current-tag
+                get-current-value: true
+                namespace: << parameters.namespace >>
+                resource-name: << parameters.resource-name >>
+                set-name: kubernetes.io/previous-tag
+                set-path-annotation: .metadata.annotations.
+            - annotation:
+                app-name: << parameters.release-name >>
+                namespace: << parameters.namespace >>
+                resource-name: << parameters.resource-name >>
+                set-name: kubernetes.io/current-tag
+                set-value: << parameters.image-tag >>
+            - run:
+                command: |
+                    helm upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --namespace << parameters.namespace >> << parameters.chart >>
+                name: Upgrade helm chart
+            - run:
+                command: |
+                    sleep 10
+                    helm status << parameters.release-name >>
+                name: Check the release status
+            - when:
+                condition: << parameters.rollout-status >>
+                name: Rollou status
+                steps:
+                    - rollout-status:
+                        app-name: << parameters.release-name >>
+                        namespace: << parameters.namespace >>
+                        resource-name: << parameters.resource-name >>
+                        timeout: << parameters.rollout-status-timeout >>
+                        watch: << parameters.rollout-status-watch >>
+    helm-deploy-multi:
+        description: Deploy the given Helm chart to EKS Cluster multiple times
+        executor: << parameters.executor >>
+        parameters:
+            chart:
+                description: Chart that will be installed
+                type: string
+            checkout:
+                default: true
+                description: Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            cluster-name:
+                description: EKS cluster name
+                type: string
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            image-tag:
+                default: ${CIRCLE_SHA1:0:7}
+                description: Which image tag will be installed
+                type: string
+            namespace:
+                description: Namespace where the chart will be installed
+                type: string
+            region:
+                description: AWS region where the eks cluster is located
+                type: string
+            release-name-prefix:
+                description: Prefix for the release name
+                type: string
+            s3-chart-repo:
+                default: null
+                description: Additional helm chart repository
+                type: string
+            values-files-dir:
+                description: Directory containing all helm values files
+                type: string
         steps:
-        - checkout
-    - update-kubeconfig-with-authenticator:
-        aws-region: << parameters.region >>
-        cluster-name: << parameters.cluster-name >>
-    - when:
-        condition: << parameters.s3-chart-repo >>
-        name: Add additional helm repo
+            - when:
+                condition: << parameters.checkout >>
+                steps:
+                    - checkout
+            - update-kubeconfig-with-authenticator:
+                aws-region: << parameters.region >>
+                cluster-name: << parameters.cluster-name >>
+            - when:
+                condition: << parameters.s3-chart-repo >>
+                name: Add additional helm repo
+                steps:
+                    - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+            - run:
+                command: |
+                    for file in << parameters.values-files-dir >>/*; do
+                      helm upgrade \
+                      --install << parameters.release-name-prefix >>-$(basename $file) \
+                      --values $file \
+                      --set-string image.tag="<< parameters.image-tag >>" \
+                      --namespace << parameters.namespace >> \
+                      << parameters.chart >>
+                    done
+                name: Upgrade helm chart
+            - run:
+                command: |
+                    sleep 10
+                    for file in << parameters.values-files-dir >>/*; do
+                      helm status << parameters.release-name-prefix >>-$(basename $file)
+                    done
+                name: Check the release status
+    revert-commit:
+        description: |
+            Revert commit in Github
+        executor: << parameters.executor >>
+        parameters:
+            branch-name:
+                default: ${CIRCLE_BRANCH}
+                description: |
+                    Branch name where it will be executed the command revert
+                type: string
+            checkout:
+                default: true
+                description: |
+                    Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            github-repo:
+                default: ""
+                description: |
+                    Repository in Github.
+                    Example: github.com/company/repo.git
+                type: string
+            github-sha1:
+                default: ""
+                description: Github token
+                type: string
+            github-token:
+                default: ""
+                description: Github token
+                type: string
+            github-user-email:
+                default: ""
+                description: Github email
+                type: string
+            github-user-name:
+                default: ${CIRCLE_USERNAME}
+                description: Github username
+                type: string
         steps:
-        - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo
-            >>/
-    - run:
-        command: |
-          for file in << parameters.values-files-dir >>/*; do
-            helm upgrade \
-            --install << parameters.release-name-prefix >>-$(basename $file) \
-            --values $file \
-            --set-string image.tag="<< parameters.image-tag >>" \
-            --namespace << parameters.namespace >> \
-            << parameters.chart >>
-          done
-        name: Upgrade helm chart
-    - run:
-        command: |
-          sleep 10
-          for file in << parameters.values-files-dir >>/*; do
-            helm status << parameters.release-name-prefix >>-$(basename $file)
-          done
-        name: Check the release status
+            - revert-commit:
+                branch-name: << parameters.branch-name >>
+                checkout: << parameters.checkout >>
+                commit-sha1: << parameters.github-sha1 >>
+                github-repo: << parameters.github-repo >>
+                github-token: << parameters.github-token >>
+                github-user-email: << parameters.github-user-email >>
+                github-user-name: << parameters.github-user-name >>
+    rollback:
+        description: |
+            Rollback a deployment, statefulset or daemonset resource.
+        executor: << parameters.executor >>
+        parameters:
+            app-name:
+                default: ""
+                description: |
+                    The name of the application to be rolled back
+                type: string
+            branch-name:
+                default: ${CIRCLE_BRANCH}
+                description: |
+                    Branch name where it will be executed the command revert
+                type: string
+            checkout:
+                default: true
+                description: |
+                    Boolean for whether or not to checkout as a first step. Default is true.
+                type: boolean
+            cluster-name:
+                default: ""
+                description: EKS cluster name
+                type: string
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            get-current-annotation-name:
+                default: kubernetes\.io\/current-tag
+                description: |
+                    Annotation that will be used as a reference for the rollback
+                    Example: kubernetes\.io\/current-tag
+                type: string
+            get-current-annotation-value:
+                default: ""
+                description: |
+                    The value that is stored in the annotation that will be used as a reference for the K8S rollback
+                type: string
+            get-previous-annotation-name:
+                default: kubernetes\.io\/previous-tag
+                description: |
+                    Annotation that will be used as a reference for the rollback
+                    Example: kubernetes\.io\/previous-tag
+                type: string
+            get-previous-annotation-value:
+                default: ""
+                description: |
+                    The value that is stored in the annotation that will be used as a reference for the K8S rollback
+                type: string
+            github-repo:
+                default: ""
+                description: |
+                    Repository in Github.
+                    Example: github.com/company/repo.git
+                type: string
+            github-sha1:
+                default: ""
+                description: Github token
+                type: string
+            github-token:
+                default: ""
+                description: Github token
+                type: string
+            github-user-email:
+                default: ""
+                description: Github email
+                type: string
+            github-user-name:
+                default: ${CIRCLE_USERNAME}
+                description: Github username
+                type: string
+            namespace:
+                default: ""
+                description: |
+                    Namespace where the chart will be installed
+                type: string
+            region:
+                default: ""
+                description: |
+                    AWS region where the eks cluster is located
+                type: string
+            resource-name:
+                default: deployment
+                description: |
+                    The name of the resource to be used.
+                    Example: deployment, daemonset and statefulset
+                type: string
+            restricted:
+                default: true
+                description: |
+                    It only allows rollback if the current version is the same in server.
+                type: boolean
+            revert-commit:
+                default: false
+                description: |
+                    Enables jobs to revert commit on Github. Default is false.
+                type: boolean
+            rollout-status:
+                default: true
+                description: |
+                    Get the status of the rollout.
+                    This can only be used for resource types that are valid
+                    for usage with `kubectl rollout` subcommands.
+                type: boolean
+            rollout-status-timeout:
+                default: 5m
+                description: |
+                    The length of time to wait before ending the watch, zero means never. Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+                type: string
+            rollout-status-watch:
+                default: true
+                description: |
+                    Whether to watch the status of the latest rollout until it's done.
+                type: boolean
+            set-path-annotation:
+                default: .spec.template.metadata.annotations.
+                description: |
+                    Path annotation
+                    Example: .spec.template.metadata.annotations.
+                type: string
+        steps:
+            - update-kubeconfig-with-authenticator:
+                aws-region: << parameters.region >>
+                cluster-name: << parameters.cluster-name >>
+            - rollback:
+                app-name: << parameters.app-name >>
+                checkout: << parameters.checkout >>
+                cluster-name: << parameters.cluster-name >>
+                get-current-annotation-name: << parameters.get-current-annotation-name >>
+                get-current-annotation-value: << parameters.get-current-annotation-value >>
+                get-previous-annotation-name: << parameters.get-previous-annotation-name >>
+                get-previous-annotation-value: << parameters.get-previous-annotation-value >>
+                namespace: << parameters.namespace >>
+                region: << parameters.region >>
+                resource-name: << parameters.resource-name >>
+                set-path-annotation: << parameters.set-path-annotation >>
+            - when:
+                condition: << parameters.rollout-status >>
+                steps:
+                    - rollout-status:
+                        app-name: << parameters.app-name >>
+                        namespace: << parameters.namespace >>
+                        resource-name: << parameters.resource-name >>
+                        timeout: << parameters.rollout-status-timeout >>
+                        watch: << parameters.rollout-status-watch >>
+            - when:
+                condition: << parameters.revert-commit >>
+                steps:
+                    - revert-commit:
+                        branch-name: << parameters.branch-name >>
+                        checkout: << parameters.checkout >>
+                        commit-sha1: << parameters.github-sha1 >>
+                        github-repo: << parameters.github-repo >>
+                        github-token: << parameters.github-token >>
+                        github-user-email: << parameters.github-user-email >>
+                        github-user-name: << parameters.github-user-name >>
+    rollout-status:
+        description: |
+            Get the status of the rollout.
+            This can only be used for resource types that are valid
+            for usage with `kubectl rollout` subcommands.
+        executor: << parameters.executor >>
+        parameters:
+            app-name:
+                default: ""
+                description: |
+                    The name of the application to be rolled back
+                type: string
+            cluster-name:
+                default: ""
+                description: EKS cluster name
+                type: string
+            executor:
+                default: default
+                description: Executor to use for this job
+                type: executor
+            namespace:
+                default: ""
+                description: |
+                    Namespace where the chart will be installed
+                type: string
+            region:
+                default: ""
+                description: |
+                    AWS region where the eks cluster is located
+                type: string
+            resource-name:
+                default: deployment
+                description: |
+                    The name of the resource to be used.
+                    Example: deployment, daemonset and statefulset
+                type: string
+            timeout:
+                default: 5m
+                description: |
+                    The length of time to wait before ending the watch, zero means never.
+                    Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+                type: string
+            watch:
+                default: true
+                description: |
+                    Whether to watch the status of the latest rollout until it's done.
+                type: boolean
+        steps:
+            - update-kubeconfig-with-authenticator:
+                aws-region: << parameters.region >>
+                cluster-name: << parameters.cluster-name >>
+            - rollout-status:
+                app-name: << parameters.app-name >>
+                namespace: << parameters.namespace >>
+                resource-name: << parameters.resource-name >>
+                timeout: << parameters.timeout >>
+                watch: << parameters.watch >>
 version: 2.1
 

@@ -1,0 +1,62 @@
+description: |
+  Since this command is possible to perform
+  a commit rollback on the Github of a specified branch.
+
+parameters:
+  branch-name:
+    type: string
+    description: |
+      Branch name where it will be executed the command revert
+    default: '${CIRCLE_BRANCH}'
+  commit-sha1:
+    type: string
+    description: |
+      The commit SHA1 hash
+    default: '${CIRCLE_SHA1:0:7}'
+  github-token:
+    type: string
+    description: Github token
+    default: ' '
+  github-repo:
+    type: string
+    description: |
+      Repository in Github.
+      Example: github.com/company/repo.git
+    default: ' '
+  github-user-name:
+    type: string
+    description: Github username
+    default: '${CIRCLE_USERNAME}'
+  github-user-email:
+    type: string
+    description: Github email
+    default: ''
+  checkout:
+    type: boolean
+    description: |
+      Boolean for whether or not to checkout as a first step. Default is true.
+    default: false
+steps:
+  - when:
+      condition: << parameters.checkout >>
+      steps:
+        - checkout
+  - run:
+      name: Reverting a commit...
+      command: |
+          BRANCH_NAME="<< parameters.branch-name >>"
+          COMMIT_SHA1="<< parameters.commit-sha1 >>"
+          GITHUB_TOKEN="<< parameters.github-token >>"
+          GITHUB_REPO="<< parameters.github-repo >>"
+          GITHUB_USER_NAME="<< parameters.github-user-name >>"
+          GITHUB_USER_EMAIL="<< parameters.github-user-email >>"
+
+          cd /tmp
+          git clone -b ${BRANCH_NAME} --depth 50 https://${GITHUB_TOKEN}@${GITHUB_REPO} ./${BRANCH_NAME}
+          cd ${BRANCH_NAME}
+          git reset --hard ${COMMIT_SHA1}
+          git reset --soft HEAD@{1}
+          git config user.email "${GITHUB_USER_EMAIL}"
+          git config user.name "${GITHUB_USER_NAME}"
+          git commit -m "Revert to ${COMMIT_SHA1:0:7} [ Skip CI: ${CIRCLE_BUILD_URL} ]"
+          git push https://${GITHUB_TOKEN}@${GITHUB_REPO} ${BRANCH_NAME}

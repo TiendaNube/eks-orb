@@ -37,6 +37,30 @@ parameters:
     type: boolean
     description: Boolean for whether or not to checkout as a first step. Default is true.
     default: true
+  resource-name:
+    type: string
+    description: |
+      The name of the resource to be used.
+      Example: deployment, daemonset and statefulset
+    default: 'deployment'
+  rollout-status:
+    type: boolean
+    description: |
+      Get the status of the rollout.
+      This can only be used for resource types that are valid
+      for usage with `kubectl rollout` subcommands.
+    default: true
+  rollout-status-watch:
+    default: true
+    description: |
+      Whether to watch the status of the latest rollout until it's done.
+    type: boolean
+  rollout-status-timeout:
+    default: '5m'
+    description: >
+      The length of time to wait before ending the watch, zero means never.
+      Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+    type: string
 steps:
   - when:
       condition: << parameters.checkout >>
@@ -50,6 +74,23 @@ steps:
       name: Add additional helm repo
       steps:
         - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+
+  - annotation:
+      app-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+      resource-name: << parameters.resource-name >>
+      set-name: "kubernetes.io/previous-tag"
+      get-current-name: kubernetes\.io\/current-tag
+      set-path-annotation: .metadata.annotations.
+      get-current-value: true
+
+  - annotation:
+      app-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+      resource-name: << parameters.resource-name >>
+      set-name: "kubernetes.io/current-tag"
+      set-value: "<< parameters.image-tag >>"
+
   - run:
       name: Upgrade helm chart
       command: >
@@ -59,8 +100,20 @@ steps:
         --set-string image.tag="<< parameters.image-tag >>"
         --namespace << parameters.namespace >>
         << parameters.chart >>
+
   - run:
       name: Check the release status
       command: |
         sleep 10
         helm status << parameters.release-name >>
+
+  - when:
+      condition: << parameters.rollout-status >>
+      name: Rollou status
+      steps:
+        - rollout-status:
+            app-name: << parameters.release-name >>
+            namespace: << parameters.namespace >>
+            resource-name: << parameters.resource-name >>
+            watch: << parameters.rollout-status-watch >>
+            timeout: << parameters.rollout-status-timeout >>

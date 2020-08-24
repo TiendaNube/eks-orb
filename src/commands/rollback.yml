@@ -1,0 +1,174 @@
+description: |
+  Rollback a deployment, statefulset or daemonset resource.
+
+parameters:
+  app-name:
+    type: string
+    description: |
+      The name of the application to be rolled back
+    default: ''
+  cluster-name:
+    type: string
+    description: EKS cluster name
+    default: ''
+  region:
+    type: string
+    description: |
+      AWS region where the eks cluster is located
+    default: ''
+  namespace:
+    type: string
+    description: |
+      Namespace where the chart will be installed
+    default: ''
+  resource-name:
+    type: string
+    description: |
+      The name of the resource to be used.
+      Example: deployment, daemonset and statefulset
+    default: 'deployment'
+  get-current-annotation-name:
+    type: string
+    description: |
+      Annotation that will be used as a reference for the rollback
+      Example: kubernetes\.io\/current-tag
+    default: 'kubernetes\.io\/current-tag'
+  get-current-annotation-value:
+    type: string
+    description: |
+      The value that is stored in the annotation that will be used as a reference for the rollback
+    default: ''
+  get-previous-annotation-name:
+    type: string
+    description: |
+      Annotation that will be used as a reference for the rollback
+      Example: kubernetes\.io\/previous-tag
+    default: 'kubernetes\.io\/previous-tag'
+  get-previous-annotation-value:
+    type: string
+    description: |
+      The value that is stored in the annotation that will be used as a reference for the rollback
+    default: ''
+  set-path-annotation:
+    type: string
+    description: |
+      Path annotation
+      Example: .spec.template.metadata.annotations.
+    default: '.spec.template.metadata.annotations.'
+  restricted:
+    type: boolean
+    description: |
+      It only allows rollback if the current version is the same in server.
+    default: true
+  checkout:
+    type: boolean
+    description: |
+      Boolean for whether or not to checkout as a first step. Default is true.
+    default: true
+
+steps:
+  - when:
+      condition: << parameters.checkout >>
+      steps:
+        - checkout
+
+  - run:
+      name: Application rollback in progress...
+      command: |
+          CLUSTER_NAME="<< parameters.cluster-name >>"
+          NAMESPACE="<< parameters.namespace >>"
+          APP_NAME="<< parameters.app-name >>"
+          RESOURCE_NAME="<< parameters.resource-name >>"
+          RESTRICTED="<< parameters.restricted >>"
+          CURRENT_ANNOTATION_NAME="<< parameters.get-current-annotation-name >>"
+          CURRENT_ANNOTATION_VALUE="<< parameters.get-current-annotation-value >>"
+          PREVIOUS_ANNOTATION_NAME="<< parameters.get-previous-annotation-name >>"
+          PREVIOUS_ANNOTATION_VALUE="<< parameters.get-previous-annotation-value >>"
+          PATH_ANNOTATION_RESOURCE="<< parameters.set-path-annotation >>"
+
+          if [ "${RESTRICTED}" == "true" ];
+          then
+
+            _PATH_ANNOTATION=${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME} ###//\\/
+
+            CHECK_ANNOTATION_VALUE=$(
+                                kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
+                                -o=jsonpath="{${_PATH_ANNOTATION}}" \
+                                --ignore-not-found
+                              )
+
+            if [[ "${CHECK_ANNOTATION_VALUE}" != "${CURRENT_ANNOTATION_VALUE}" ]];
+            then
+              echo "The current version on the server is different from the rollback:";
+              echo "Rollback: ${CURRENT_ANNOTATION_VALUE}"
+              echo "Server: ${CHECK_ANNOTATION_VALUE}"
+              exit 1
+            fi
+
+              echo "Check okay!"
+              echo "Rollback: ${CURRENT_ANNOTATION_VALUE}"
+              echo "Server: ${CHECK_ANNOTATION_VALUE}"
+
+          fi
+
+          if [ -n "${RESOURCE_NAME}" ]; then
+            set -- "$@" "${RESOURCE_NAME}"
+          fi
+
+          if [ -n "${APP_NAME}" ]; then
+            set -- "$@" "${APP_NAME}"
+          fi
+
+          if [ -n "${NAMESPACE}" ]; then
+            set -- "$@" "--namespace=${NAMESPACE}"
+          fi
+
+          PATH_CURRENT_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${CURRENT_ANNOTATION_NAME}"
+          PATH_ANNOTATION_RESOURCE="${PATH_ANNOTATION_RESOURCE}${PREVIOUS_ANNOTATION_NAME}"
+
+          if [ -z "${PREVIOUS_ANNOTATION_VALUE}" ];
+          then
+
+            PREVIOUS_ANNOTATION_VALUE=$(
+                                kubectl -n ${NAMESPACE} get ${RESOURCE_NAME} ${APP_NAME} \
+                                -o=jsonpath="{${PATH_ANNOTATION_RESOURCE}}" \
+                                --ignore-not-found
+                              )
+
+            if [[ -z ${PREVIOUS_ANNOTATION_VALUE} ]];
+            then
+              PREVIOUS_ANNOTATION_VALUE="00000000000000"
+            fi
+          fi
+
+          JSONPATH="{range .items[?(@.metadata.labels.app == '${APP_NAME}')]}{.revision}{'\t'}{${PATH_CURRENT_ANNOTATION_RESOURCE}}{'\n'}{end}"
+
+          ROLLBACK_REVISION=$(kubectl --namespace=${NAMESPACE} get controllerrevisions \
+                              --sort-by='{.revision}' -o jsonpath="${JSONPATH}" \
+                              | grep "${PREVIOUS_ANNOTATION_VALUE}" | tail -1 | awk '{ print $1 }'
+                            );
+
+          if [ -z "${ROLLBACK_REVISION}" ];
+          then
+            echo "Command failed :(";
+            echo "The revision reported could not be found";
+            exit 1
+          else
+            set -- "$@" --to-revision="${ROLLBACK_REVISION}"
+          fi
+
+          kubectl rollout undo "$@"
+
+          kubectl -n ${NAMESPACE} annotate ${RESOURCE_NAME} ${APP_NAME} \
+          kubernetes.io/rollback-cause="reverted-from-${CURRENT_ANNOTATION_VALUE}-to-${PREVIOUS_ANNOTATION_VALUE}" \
+          --record=false --overwrite
+
+          kubectl -n ${NAMESPACE} annotate ${RESOURCE_NAME} ${APP_NAME} \
+          ${CURRENT_ANNOTATION_NAME//\\/}="${PREVIOUS_ANNOTATION_VALUE}" \
+          --record=false --overwrite
+
+          kubectl -n ${NAMESPACE} annotate ${RESOURCE_NAME} ${APP_NAME} \
+          ${PREVIOUS_ANNOTATION_NAME//\\/}="${CURRENT_ANNOTATION_VALUE}" \
+          --record=false --overwrite
+
+          echo "Annotation Value: ${PREVIOUS_ANNOTATION_VALUE}."

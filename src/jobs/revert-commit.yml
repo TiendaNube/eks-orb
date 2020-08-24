@@ -1,0 +1,52 @@
+description: |
+  Revert commit in Github
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: Executor to use for this job
+    type: executor
+    default: default
+  checkout:
+    type: boolean
+    description: |
+      Boolean for whether or not to checkout as a first step. Default is true.
+    default: true
+  branch-name:
+    type: string
+    description: |
+      Branch name where it will be executed the command revert
+    default: '${CIRCLE_BRANCH}'
+  github-sha1:
+    type: string
+    description: Github token
+    default: ''
+  github-token:
+    type: string
+    description: Github token
+    default: ''
+  github-repo:
+    type: string
+    description: |
+      Repository in Github.
+      Example: github.com/company/repo.git
+    default: ''
+  github-user-name:
+    type: string
+    description: Github username
+    default: '${CIRCLE_USERNAME}'
+  github-user-email:
+    type: string
+    description: Github email
+    default: ''
+
+steps:
+  - revert-commit:
+      branch-name: << parameters.branch-name >>
+      checkout: << parameters.checkout >>
+      commit-sha1: << parameters.github-sha1 >>
+      github-token: << parameters.github-token >>
+      github-repo: << parameters.github-repo >>
+      github-user-email: << parameters.github-user-email >>
+      github-user-name: << parameters.github-user-name >>

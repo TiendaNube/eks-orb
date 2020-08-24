@@ -1,0 +1,25 @@
+description: Annotation to EKS
+usage:
+  version: 2.1
+
+  orbs:
+    eks: tiendanube/eks@x.y.z
+
+  workflows:
+    your-workflow:
+      jobs:
+        - eks/annotation:
+            app-name: Application name
+            namespace: Namespace
+            resource-name: deployment # deployment, statefulset or daemonset
+            set-name: "kubernetes.io/previous-tag"
+            get-current-name: kubernetes\.io\/current-tag
+            set-path-annotation: .spec.template.metadata.annotations. # .metadata.annotations. -> StatefulSet
+            get-current-value: true # get value from kubernetes.io/current-tag
+
+        - eks/annotation:
+            app-name: Application name
+            namespace: Namespace
+            resource-name: deployment # deployment, statefulset or daemonset
+            set-name: "kubernetes.io/current-tag"
+            set-value: "my value"
