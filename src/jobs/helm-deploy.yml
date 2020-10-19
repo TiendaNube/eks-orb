@@ -33,6 +33,9 @@ parameters:
     type: string
     description: Which image tag will be installed
     default: ${CIRCLE_SHA1:0:7}
+  hosts:
+    type: string
+    description: Which hostname will be used in ingress
   checkout:
     type: boolean
     description: Boolean for whether or not to checkout as a first step. Default is true.
@@ -106,6 +109,7 @@ steps:
         --install << parameters.release-name >>
         --values << parameters.values-file >>
         --set-string image.tag="<< parameters.image-tag >>"
+        --set-string hosts="<< parameters.hosts >>"
         --namespace << parameters.namespace >>
         << parameters.chart >>
 
