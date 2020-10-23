@@ -109,7 +109,7 @@ steps:
         --install << parameters.release-name >>
         --values << parameters.values-file >>
         --set-string image.tag="<< parameters.image-tag >>"
-        --set-string hosts="<< parameters.hosts >>"
+        --set ingress.hosts[0]="<< parameters.hosts >>"
         --namespace << parameters.namespace >>
         << parameters.chart >>
 
