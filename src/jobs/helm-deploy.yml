@@ -33,6 +33,10 @@ parameters:
     type: string
     description: Which image tag will be installed
     default: ${CIRCLE_SHA1:0:7}
+  args:
+    type: string
+    description: args to be used as helm client args
+    default: ""
   checkout:
     type: boolean
     description: Boolean for whether or not to checkout as a first step. Default is true.
@@ -106,6 +110,7 @@ steps:
         --install << parameters.release-name >>
         --values << parameters.values-file >>
         --set-string image.tag="<< parameters.image-tag >>"
+        <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
         << parameters.chart >>
 
