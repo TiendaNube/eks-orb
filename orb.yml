@@ -775,6 +775,10 @@ jobs:
         description: Deploy the given Helm chart to EKS Cluster
         executor: << parameters.executor >>
         parameters:
+            args:
+                default: ""
+                description: args to be used as helm client args
+                type: string
             chart:
                 description: Chart that will be installed
                 type: string
@@ -869,7 +873,7 @@ jobs:
                 set-value: << parameters.image-tag >>
             - run:
                 command: |
-                    helm upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --namespace << parameters.namespace >> << parameters.chart >>
+                    helm upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
                 name: Upgrade helm chart
             - run:
                 command: |
