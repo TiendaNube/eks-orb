@@ -746,7 +746,7 @@ executors:
     default:
         description: CircleCI convenience image for AWS EKS
         docker:
-            - image: tiendanube/circleci-eks:v1.1.15
+            - image: tiendanube/circleci-eks:v1.1.16
 jobs:
     deploy:
         description: Authenticate to eks cluster and run the steps provided
