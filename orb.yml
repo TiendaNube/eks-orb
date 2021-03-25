@@ -746,7 +746,7 @@ executors:
     default:
         description: CircleCI convenience image for AWS EKS
         docker:
-            - image: tiendanube/circleci-eks:v1.1.12
+            - image: tiendanube/circleci-eks:v1.1.17
 jobs:
     deploy:
         description: Authenticate to eks cluster and run the steps provided
@@ -793,6 +793,16 @@ jobs:
                 default: default
                 description: Executor to use for this job
                 type: executor
+            helm-version:
+                default: helm
+                description: |
+                    The helm version
+                type: string
+            helm-workspace:
+                default: ""
+                description: |
+                    Helm v3 version need to inform which workspace will work example: --namespace core
+                type: string
             image-tag:
                 default: ${CIRCLE_SHA1:0:7}
                 description: Which image tag will be installed
@@ -854,7 +864,7 @@ jobs:
                 condition: << parameters.s3-chart-repo >>
                 name: Add additional helm repo
                 steps:
-                    - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+                    - run: << parameters.helm-version >> repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
             - annotation:
                 app-name: << parameters.release-name >>
                 get-current-name: kubernetes\.io\/current-tag
@@ -873,12 +883,12 @@ jobs:
                 set-value: << parameters.image-tag >>
             - run:
                 command: |
-                    helm upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
+                    << parameters.helm-version >> upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
                 name: Upgrade helm chart
             - run:
                 command: |
                     sleep 10
-                    helm status << parameters.release-name >>
+                    << parameters.helm-version >> status << parameters.release-name >> << parameters.helm-workspace >>
                 name: Check the release status
             - when:
                 condition: << parameters.rollout-status >>
