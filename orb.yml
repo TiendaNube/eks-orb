@@ -798,11 +798,11 @@ jobs:
                 description: |
                     The helm version
                 type: string
-            helm-workspace:
-                default: ""
+            helmv3:
+                default: "false"
                 description: |
-                    Helm v3 version need to inform which workspace will work example: --namespace core
-                type: string
+                    check if helm version is v3
+                type: boolean
             image-tag:
                 default: ${CIRCLE_SHA1:0:7}
                 description: Which image tag will be installed
@@ -885,11 +885,19 @@ jobs:
                 command: |
                     << parameters.helm-version >> upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
                 name: Upgrade helm chart
-            - run:
-                command: |
-                    sleep 10
-                    << parameters.helm-version >> status << parameters.release-name >> << parameters.helm-workspace >>
+            - when:
+                condition: << parameters.helmv3 >>
                 name: Check the release status
+                steps:
+                    - run: |
+                        sleep 10
+                        << parameters.helm-version >> status << parameters.release-name >>
+            - unless:
+                condition: << parameters.helmv3 >>
+                steps:
+                    - run: |
+                        sleep 10
+                        << parameters.helm-version >> status << parameters.release-name >> --namespace << parameters.namespace >>
             - when:
                 condition: << parameters.rollout-status >>
                 name: Rollou status

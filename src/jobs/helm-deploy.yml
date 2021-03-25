@@ -128,15 +128,15 @@ steps:
       condition: << parameters.helmv3 >>
       name: Check the release status
       steps:
-       - run: |
-        sleep 10
-        << parameters.helm-version >> status << parameters.release-name >>
+        - run: |
+            sleep 10
+            << parameters.helm-version >> status << parameters.release-name >>
   - unless:
       condition: << parameters.helmv3 >>
       steps:
         - run: |
-        sleep 10
-        << parameters.helm-version >> status << parameters.release-name >> --namespace << parameters.namespace >>
+            sleep 10
+            << parameters.helm-version >> status << parameters.release-name >> --namespace << parameters.namespace >>
 
   - when:
       condition: << parameters.rollout-status >>
