@@ -891,13 +891,13 @@ jobs:
                 steps:
                     - run: |
                         sleep 10
-                        << parameters.helm-version >> status << parameters.release-name >>
+                        << parameters.helm-version >> status << parameters.release-name >> --namespace << parameters.namespace >>
             - unless:
                 condition: << parameters.helmv3 >>
                 steps:
                     - run: |
                         sleep 10
-                        << parameters.helm-version >> status << parameters.release-name >> --namespace << parameters.namespace >>
+                        << parameters.helm-version >> status << parameters.release-name >>
             - when:
                 condition: << parameters.rollout-status >>
                 name: Rollou status
