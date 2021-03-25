@@ -76,6 +76,12 @@ parameters:
     description: >
       The helm version
     type: string
+  helm-workspace:
+    default: ''
+    description: >
+      Helm v3 version need to inform which workspace will work example:
+      --namespace core
+    type: string
 steps:
   - when:
       condition: << parameters.checkout >>
@@ -123,7 +129,7 @@ steps:
       name: Check the release status
       command: |
         sleep 10
-        << parameters.helm-version >> status << parameters.release-name >>
+        << parameters.helm-version >> status << parameters.release-name >> << parameters.helm-workspace >>
 
   - when:
       condition: << parameters.rollout-status >>
