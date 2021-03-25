@@ -799,7 +799,7 @@ jobs:
                     The helm version
                 type: string
             helmv3:
-                default: "false"
+                default: false
                 description: |
                     check if helm version is v3
                 type: boolean
