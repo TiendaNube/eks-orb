@@ -76,12 +76,11 @@ parameters:
     description: >
       The helm version
     type: string
-  helm-workspace:
-    default: ''
+  helmv3:
+    default: false
     description: >
-      Helm v3 version need to inform which workspace will work example:
-      --namespace core
-    type: string
+      check if helm version is v3
+    type: boolean
 steps:
   - when:
       condition: << parameters.checkout >>
@@ -95,6 +94,7 @@ steps:
       name: Add additional helm repo
       steps:
         - run: << parameters.helm-version >> repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+
 
   - annotation:
       app-name: << parameters.release-name >>
@@ -124,12 +124,20 @@ steps:
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
         << parameters.chart >>
-
-  - run:
+  - when:
+      condition: << parameters.helmv3 >>
       name: Check the release status
-      command: |
-        sleep 10
-        << parameters.helm-version >> status << parameters.release-name >> << parameters.helm-workspace >>
+      steps:
+        - run: |
+            sleep 10
+            << parameters.helm-version >> status << parameters.release-name >> --namespace << parameters.namespace >>
+
+  - unless:
+      condition: << parameters.helmv3 >>
+      steps:
+        - run: |
+            sleep 10
+            << parameters.helm-version >> status << parameters.release-name >>
 
   - when:
       condition: << parameters.rollout-status >>
