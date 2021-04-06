@@ -1,0 +1,15 @@
+description: |
+  Allows use the yamllint to work with Amazon EKS.
+
+parameters:
+  path_dir:
+    description: |
+      Param to define path_dir
+    type: string
+    default: "."
+
+steps:
+  - run:
+      name: "Run yamllint"
+      command: |
+        yamllint << parameters.path_dir >>

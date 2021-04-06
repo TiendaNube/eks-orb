@@ -626,6 +626,20 @@ commands:
                     fi
                     aws eks update-kubeconfig "$@"
                 name: << parameters.label >>
+    yamllint:
+        description: |
+            Allows use the yamllint to work with Amazon EKS.
+        parameters:
+            path_dir:
+                default: .
+                description: |
+                    Param to define path_dir
+                type: string
+        steps:
+            - run:
+                command: |
+                    yamllint << parameters.path_dir >>
+                name: Run yamllint
 description: An orb for working with Amazon EKS
 display:
     home_url: https://github.com/TiendaNube/eks-orb
@@ -746,7 +760,7 @@ executors:
     default:
         description: CircleCI convenience image for AWS EKS
         docker:
-            - image: tiendanube/circleci-eks:v1.1.17
+            - image: tiendanube/circleci-eks:v1.1.18
 jobs:
     deploy:
         description: Authenticate to eks cluster and run the steps provided
