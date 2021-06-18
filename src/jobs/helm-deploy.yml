@@ -81,6 +81,11 @@ parameters:
     description: >
       check if helm version is v3
     type: boolean
+  mesh:
+    default: false
+    description: >
+      check if enabled label istio on namespace
+    type: boolean
 steps:
   - when:
       condition: << parameters.checkout >>
@@ -94,7 +99,6 @@ steps:
       name: Add additional helm repo
       steps:
         - run: << parameters.helm-version >> repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
-
 
   - annotation:
       app-name: << parameters.release-name >>
@@ -121,6 +125,7 @@ steps:
         --install << parameters.release-name >>
         --values << parameters.values-file >>
         --set-string image.tag="<< parameters.image-tag >>"
+        --set mesh << parameters.mesh >>
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
         << parameters.chart >>
@@ -139,6 +144,16 @@ steps:
             sleep 10
             << parameters.helm-version >> status << parameters.release-name >>
 
+  - when:
+      condition: << parameters.mesh >>
+      name: Enable label istio mesh on namespace
+      steps:
+        - run:
+          name: validate label's namespace
+          command: |
+            if [[ $(kubectl get ns << parameters.namespace >> -o custom-columns=VALUE:.metadata.labels.istio-injection --no-headers) != "enabled" ]]; then
+              kubectl label namespace << parameters.namespace >> istio-injection=enabled --overwrite
+            fi
   - when:
       condition: << parameters.rollout-status >>
       name: Rollou status
