@@ -140,6 +140,7 @@ steps:
           <<#parameters.args>><<parameters.args>><</parameters.args>>
           --namespace << parameters.namespace >>
           << parameters.chart >>
+        fi
   - when:
       condition: << parameters.helmv3 >>
       name: Check the release status
