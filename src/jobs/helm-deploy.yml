@@ -121,14 +121,25 @@ steps:
   - run:
       name: Upgrade helm chart
       command: >
-        << parameters.helm-version >> upgrade
-        --install << parameters.release-name >>
-        --values << parameters.values-file >>
-        --set-string image.tag="<< parameters.image-tag >>"
-        --set mesh=<< parameters.mesh >>
-        <<#parameters.args>><<parameters.args>><</parameters.args>>
-        --namespace << parameters.namespace >>
-        << parameters.chart >>
+        if ( << parameters.helmv3 >> ); then
+          << parameters.helm-version >> upgrade
+          --install << parameters.release-name >>
+          --values << parameters.values-file >>
+          --set-string image.tag="<< parameters.image-tag >>"
+          --set mesh=<< parameters.mesh >>
+          <<#parameters.args>><<parameters.args>><</parameters.args>>
+          --namespace << parameters.namespace >>
+          --create-namespace
+          << parameters.chart >>
+        else
+          << parameters.helm-version >> upgrade
+          --install << parameters.release-name >>
+          --values << parameters.values-file >>
+          --set-string image.tag="<< parameters.image-tag >>"
+          --set mesh=<< parameters.mesh >>
+          <<#parameters.args>><<parameters.args>><</parameters.args>>
+          --namespace << parameters.namespace >>
+          << parameters.chart >>
   - when:
       condition: << parameters.helmv3 >>
       name: Check the release status
