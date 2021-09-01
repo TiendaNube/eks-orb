@@ -118,18 +118,39 @@ steps:
       set-value: "<< parameters.image-tag >>"
       ignore-not-found: true
 
-  - run:
-      name: Upgrade helm chart
-      command: >
-        << parameters.helm-version >> upgrade
-        --install << parameters.release-name >>
-        --create-namespace
-        --values << parameters.values-file >>
-        --set-string image.tag="<< parameters.image-tag >>"
-        --set mesh=<< parameters.mesh >>
-        <<#parameters.args>><<parameters.args>><</parameters.args>>
-        --namespace << parameters.namespace >>
-        << parameters.chart >>
+  - unless:
+      condition: << parameters.helmv3 >>
+      name: install release with helm version 2
+      steps:
+        - run:
+            name: Upgrade helm chart
+            command: >
+              << parameters.helm-version >> upgrade
+              --install << parameters.release-name >>
+              --values << parameters.values-file >>
+              --set-string image.tag="<< parameters.image-tag >>"
+              --set mesh=<< parameters.mesh >>
+              <<#parameters.args>><<parameters.args>><</parameters.args>>
+              --namespace << parameters.namespace >>
+              << parameters.chart >>
+    
+  - when:
+      condition: << parameters.helmv3 >>
+      name: install release with helm version 3
+      steps:
+        - run:
+            name: Upgrade helm chart
+            command: >
+              << parameters.helm-version >> upgrade
+              --install << parameters.release-name >>
+              --create-namespace
+              --values << parameters.values-file >>
+              --set-string image.tag="<< parameters.image-tag >>"
+              --set mesh=<< parameters.mesh >>
+              <<#parameters.args>><<parameters.args>><</parameters.args>>
+              --namespace << parameters.namespace >>
+              << parameters.chart >>
+  
   - when:
       condition: << parameters.helmv3 >>
       name: Check the release status

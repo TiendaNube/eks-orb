@@ -1,3 +1,7 @@
+version: 2.1
+description: An orb for working with Amazon EKS
+display:
+    home_url: https://github.com/TiendaNube/eks-orb
 commands:
     annotation:
         description: |
@@ -640,122 +644,6 @@ commands:
                 command: |
                     yamllint << parameters.path_dir >>
                 name: Run yamllint
-description: An orb for working with Amazon EKS
-display:
-    home_url: https://github.com/TiendaNube/eks-orb
-examples:
-    annotation:
-        description: Annotation to EKS
-        usage:
-            orbs:
-                eks: tiendanube/eks@x.y.z
-            version: 2.1
-            workflows:
-                your-workflow:
-                    jobs:
-                        - eks/annotation:
-                            app-name: Application name
-                            get-current-name: kubernetes\.io\/current-tag
-                            get-current-value: true
-                            namespace: Namespace
-                            resource-name: deployment
-                            set-name: kubernetes.io/previous-tag
-                            set-path-annotation: .spec.template.metadata.annotations.
-                        - eks/annotation:
-                            app-name: Application name
-                            namespace: Namespace
-                            resource-name: deployment
-                            set-name: kubernetes.io/current-tag
-                            set-value: my value
-    deploy:
-        description: Deploy to EKS
-        usage:
-            orbs:
-                eks: tiendanube/eks@x.y.z
-            version: 2.1
-            workflows:
-                your-workflow:
-                    jobs:
-                        - eks/deploy:
-                            cluster-name: cluster-name
-                            region: region
-                            steps:
-                                - run:
-                                    command: |
-                                        kubectl apply -f bundle.yml
-                                        kubectl apply -f deployment.yml
-    helm-deploy:
-        description: EKS Helm Deploy
-        usage:
-            orbs:
-                eks: tiendanube/eks@x.y.z
-            version: 2.1
-            workflows:
-                your-workflow:
-                    jobs:
-                        - eks/helm-deploy:
-                            chart: stable/chart
-                            chart-version: latest
-                            cluster-name: cluster-name
-                            image-tag: ${CIRCLE_SHA1:0:7}
-                            namespace: default
-                            region: aws-region
-                            release-name: release-name
-                            resource-name: deployment
-                            rollout-status: true
-                            rollout-status-timeout: 5m
-                            rollout-status-watch: true
-                            values-file: values.yaml
-    revert-commit:
-        description: Annotation to EKS
-        usage:
-            orbs:
-                eks: tiendanube/eks@x.y.z
-            version: 2.1
-            workflows:
-                your-workflow:
-                    jobs:
-                        - eks/revert-commit:
-                            branch-name: ${CIRCLE_BRANCH}
-                            checkout: false
-                            github-repo: github.com/company/branch.git
-                            github-sha1: ${CIRCLE_SHA1:0:7}
-                            github-token: ${GITHUB_TOKEN}
-                            github-user-email: email@company.com
-                            github-user-name: ${CIRCLE_USERNAME}
-                            name: Job name
-    rollback:
-        description: Rollback to EKS
-        usage:
-            orbs:
-                eks: tiendanube/eks@x.y.z
-            version: 2.1
-            workflows:
-                your-workflow:
-                    jobs:
-                        - eks/rollback:
-                            app-name: Application Name
-                            branch-name: ${CIRCLE_BRANCH}
-                            checkout: false
-                            cluster-name: Cluster Name
-                            get-current-annotation-name: kubernetes\.io\/current-tag
-                            get-current-annotation-value: ${CIRCLE_SHA1:0:7}
-                            get-previous-annotation-name: kubernetes\.io\/previous-tag
-                            github-repo: github.com/company/branch.git
-                            github-sha1: ${CIRCLE_SHA1:0:7}
-                            github-token: ${GITHUB_TOKEN}
-                            github-user-email: email@company.com
-                            github-user-name: ${CIRCLE_USERNAME}
-                            name: Job Name
-                            namespace: Namespace
-                            region: Region
-                            resource-name: deployment
-                            restricted: true
-                            revert-commit: false
-                            rollout-status: true
-                            rollout-status-timeout: 5m
-                            rollout-status-watch: true
-                            set-path-annotation: .spec.template.metadata.annotations.
 executors:
     default:
         description: CircleCI convenience image for AWS EKS
@@ -900,10 +788,22 @@ jobs:
                 resource-name: << parameters.resource-name >>
                 set-name: kubernetes.io/current-tag
                 set-value: << parameters.image-tag >>
-            - run:
-                command: |
-                    << parameters.helm-version >> upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --set mesh << parameters.mesh >> <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
-                name: Upgrade helm chart
+            - unless:
+                condition: << parameters.helmv3 >>
+                name: install release with helm version 2
+                steps:
+                    - run:
+                        command: |
+                            << parameters.helm-version >> upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --set mesh=<< parameters.mesh >> <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
+                        name: Upgrade helm chart
+            - when:
+                condition: << parameters.helmv3 >>
+                name: install release with helm version 3
+                steps:
+                    - run:
+                        command: |
+                            << parameters.helm-version >> upgrade --install << parameters.release-name >> --create-namespace --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --set mesh=<< parameters.mesh >> <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
+                        name: Upgrade helm chart
             - when:
                 condition: << parameters.helmv3 >>
                 name: Check the release status
@@ -1268,5 +1168,117 @@ jobs:
                 resource-name: << parameters.resource-name >>
                 timeout: << parameters.timeout >>
                 watch: << parameters.watch >>
-version: 2.1
+examples:
+    annotation:
+        description: Annotation to EKS
+        usage:
+            version: "2.1"
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/annotation:
+                            app-name: Application name
+                            get-current-name: kubernetes\.io\/current-tag
+                            get-current-value: true
+                            namespace: Namespace
+                            resource-name: deployment
+                            set-name: kubernetes.io/previous-tag
+                            set-path-annotation: .spec.template.metadata.annotations.
+                        - eks/annotation:
+                            app-name: Application name
+                            namespace: Namespace
+                            resource-name: deployment
+                            set-name: kubernetes.io/current-tag
+                            set-value: my value
+    deploy:
+        description: Deploy to EKS
+        usage:
+            version: "2.1"
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/deploy:
+                            cluster-name: cluster-name
+                            region: region
+                            steps:
+                                - run:
+                                    command: |
+                                        kubectl apply -f bundle.yml
+                                        kubectl apply -f deployment.yml
+    helm-deploy:
+        description: EKS Helm Deploy
+        usage:
+            version: "2.1"
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/helm-deploy:
+                            chart: stable/chart
+                            chart-version: latest
+                            cluster-name: cluster-name
+                            image-tag: ${CIRCLE_SHA1:0:7}
+                            namespace: default
+                            region: aws-region
+                            release-name: release-name
+                            resource-name: deployment
+                            rollout-status: true
+                            rollout-status-timeout: 5m
+                            rollout-status-watch: true
+                            values-file: values.yaml
+    revert-commit:
+        description: Annotation to EKS
+        usage:
+            version: "2.1"
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/revert-commit:
+                            branch-name: ${CIRCLE_BRANCH}
+                            checkout: false
+                            github-repo: github.com/company/branch.git
+                            github-sha1: ${CIRCLE_SHA1:0:7}
+                            github-token: ${GITHUB_TOKEN}
+                            github-user-email: email@company.com
+                            github-user-name: ${CIRCLE_USERNAME}
+                            name: Job name
+    rollback:
+        description: Rollback to EKS
+        usage:
+            version: "2.1"
+            orbs:
+                eks: tiendanube/eks@x.y.z
+            workflows:
+                your-workflow:
+                    jobs:
+                        - eks/rollback:
+                            app-name: Application Name
+                            branch-name: ${CIRCLE_BRANCH}
+                            checkout: false
+                            cluster-name: Cluster Name
+                            get-current-annotation-name: kubernetes\.io\/current-tag
+                            get-current-annotation-value: ${CIRCLE_SHA1:0:7}
+                            get-previous-annotation-name: kubernetes\.io\/previous-tag
+                            github-repo: github.com/company/branch.git
+                            github-sha1: ${CIRCLE_SHA1:0:7}
+                            github-token: ${GITHUB_TOKEN}
+                            github-user-email: email@company.com
+                            github-user-name: ${CIRCLE_USERNAME}
+                            name: Job Name
+                            namespace: Namespace
+                            region: Region
+                            resource-name: deployment
+                            restricted: true
+                            revert-commit: false
+                            rollout-status: true
+                            rollout-status-timeout: 5m
+                            rollout-status-watch: true
+                            set-path-annotation: .spec.template.metadata.annotations.
 
