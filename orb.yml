@@ -179,6 +179,11 @@ commands:
                 default: ""
                 description: Specify the environment name.
                 type: string
+            helm-binary:
+                default: v2
+                description: |
+                    The helm version v2 or v3
+                type: string
             label:
                 default: Helmfile client command
                 description: |
@@ -195,9 +200,13 @@ commands:
                     CLUSTER_NAME="<< parameters.cluster-name >>"
                     ENV_NAME="<< parameters.env >>"
                     COMMAND="<< parameters.command >>"
+                    HELM_BINARY="<< parameters.helm-binary >>"
 
                     if [ -n "${ENV_NAME}" ]; then
                       set -- "$@" -e "${ENV_NAME}"
+                    fi
+                    if [ "${HELM_BINARY}" == "v3" ]; then
+                      set -- "$@" -b /usr/local/bin/helmv3
                     fi
                     if [ -n "${COMMAND}" ]; then
                       set -- "$@" "${COMMAND}"
@@ -760,7 +769,7 @@ executors:
     default:
         description: CircleCI convenience image for AWS EKS
         docker:
-            - image: tiendanube/circleci-eks:v1.1.18
+            - image: tiendanube/circleci-eks:v1.2.0
 jobs:
     deploy:
         description: Authenticate to eks cluster and run the steps provided
@@ -902,7 +911,7 @@ jobs:
                 set-value: << parameters.image-tag >>
             - run:
                 command: |
-                    << parameters.helm-version >> upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --set mesh << parameters.mesh >> <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
+                    << parameters.helm-version >> upgrade --install << parameters.release-name >> --values << parameters.values-file >> --set-string image.tag="<< parameters.image-tag >>" --set mesh=<< parameters.mesh >> <<#parameters.args>><<parameters.args>><</parameters.args>> --namespace << parameters.namespace >> << parameters.chart >>
                 name: Upgrade helm chart
             - when:
                 condition: << parameters.helmv3 >>
