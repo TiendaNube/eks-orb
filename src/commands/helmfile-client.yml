@@ -27,6 +27,11 @@ parameters:
       In which directory to run the steps. Default: ~/project
     type: string
     default: "~/project"
+  helm-binary:
+    default: "v2"
+    description: >
+      The helm version v2 or v3
+    type: string
 
 steps:
   - run:
@@ -36,9 +41,13 @@ steps:
         CLUSTER_NAME="<< parameters.cluster-name >>"
         ENV_NAME="<< parameters.env >>"
         COMMAND="<< parameters.command >>"
+        HELM_BINARY="<< parameters.helm-binary >>"
 
         if [ -n "${ENV_NAME}" ]; then
           set -- "$@" -e "${ENV_NAME}"
+        fi
+        if [ "${HELM_BINARY}" == "v3" ]; then
+          set -- "$@" -b /usr/local/bin/helmv3
         fi
         if [ -n "${COMMAND}" ]; then
           set -- "$@" "${COMMAND}"
