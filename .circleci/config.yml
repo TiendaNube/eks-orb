@@ -42,9 +42,8 @@ jobs:
 
 workflows:
   btd:
-
     unless: << pipeline.parameters.run-integration-tests >>
-
+  
     jobs:
       - orb-tools/lint:
           name: lint
@@ -66,9 +65,4 @@ workflows:
           requires:
             - publish-dev
           context: orbs
-  integration-tests_prod-release:
-    when: << pipeline.parameters.run-integration-tests >>
-    jobs:
-
-      - integration-tests-eks-orb:
-          context: microservices
+          
