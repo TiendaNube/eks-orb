@@ -40,38 +40,10 @@ jobs:
               helmfile --version
               terraform --version
 
-  integration-beta-tests-eks-orb:
-    executor: eks/beta
-    steps:
-      - checkout
-      - eks/update-kubeconfig-with-authenticator:
-          aws-region: us-west-2
-          cluster-name: staging
-      - eks/helm-client:
-          namespace: core
-          command: ls
-      - eks/helmfile-client:
-          cluster-name: staging
-          command: --version
-      - eks/kubectl:
-          namespace: core
-          command: get
-          args: pods
-      - run:
-          name: Testing All commands
-          command: |
-              aws-iam-authenticator version
-              aws --version
-              kubectl version
-              helm version
-              helmfile --version
-              terraform --version
-
 workflows:
   btd:
-
     unless: << pipeline.parameters.run-integration-tests >>
-
+  
     jobs:
       - orb-tools/lint:
           name: lint
@@ -93,10 +65,4 @@ workflows:
           requires:
             - publish-dev
           context: orbs
-  integration-tests_prod-release:
-    when: << pipeline.parameters.run-integration-tests >>
-    jobs:
-      - integration-tests-eks-orb:
-          context: microservices
-      - integration-beta-tests-eks-orb:
-          context: microservices
+          
