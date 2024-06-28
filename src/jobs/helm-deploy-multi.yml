@@ -35,6 +35,10 @@ parameters:
     type: boolean
     description: Boolean for whether or not to checkout as a first step. Default is true.
     default: true
+  aws-oidc-role:
+    type: string
+    description: IAM role ARN for OIDC
+    default: ""
 steps:
   - when:
       condition: << parameters.checkout >>
@@ -43,6 +47,7 @@ steps:
   - update-kubeconfig-with-authenticator:
       cluster-name: << parameters.cluster-name >>
       aws-region: << parameters.region >>
+      aws-oidc-role: << parameters.aws-oidc-role >>
   - when:
       condition: << parameters.s3-chart-repo >>
       name: Add additional helm repo
