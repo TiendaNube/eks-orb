@@ -62,4 +62,9 @@ steps:
           set -- "$@" --watch=false
         fi
 
-        kubectl rollout status "$@"
+        if [[ "${RESOURCE_NAME}" == "deployment" || "${RESOURCE_NAME}" == "daemonset" || "${RESOURCE_NAME}" == "statefulset" ]]; then
+          kubectl rollout status "$@"
+        else
+          echo "Resource ${RESOURCE_NAME} does not have rollout status"
+          exit 1
+        fi
