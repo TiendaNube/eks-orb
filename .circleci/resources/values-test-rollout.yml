@@ -1,0 +1,6 @@
+image:
+  repository: 201009178507.dkr.ecr.us-east-1.amazonaws.com/al-co-epc-k8s-spring-boot-demo
+  pullPolicy: IfNotPresent
+
+nameOverride: "rollouts-circleci-integration-test"
+fullnameOverride: "rollouts-circleci-integration-test"

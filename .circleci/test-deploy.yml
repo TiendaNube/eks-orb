@@ -1,0 +1,52 @@
+version: 2.1
+
+orbs:
+  orb-tools: circleci/orb-tools@12.3.1
+  eks: {}
+
+filters: &filters
+  tags:
+    only: /.*/
+
+release-filters: &release-filters
+  branches:
+    ignore: /.*/
+  tags:
+    only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
+
+workflows:
+  test-deploy:
+    jobs:
+      - test-helm-argo-rollout-approval:
+          type: approval
+          filters: *filters
+      - eks/helm-argo-rollout:
+          name: test-helm-argo-rollout
+          context: microservices
+          executor: eks/default
+          pre-steps:
+            - aws-cli/setup:
+                role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
+                region: ${AWS_REGION}
+          checkout: false
+          cluster-name: production
+          image-tag: 9c85b6b
+          region: ${AWS_REGION}
+          namespace: argocd-rollouts-integration-test
+          release-name: rollouts-circleci-integration-test
+          s3-chart-repo: tiendanube/helm-charts
+          values-file: resources/values-test-rollout.yaml
+          filters: *filters
+          requires: [test-helm-argo-rollout-approval]
+      # The orb must be re-packed for publishing, and saved to the workspace.
+      - orb-tools/pack:
+          org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
+          filters: *release-filters
+      - orb-tools/publish:
+          context: orbs-token
+          circleci_token: CIRCLE_TOKEN
+          orb_name: tiendanube/eks-orb
+          vcs_type: << pipeline.project.type >>
+          pub_type: production
+          requires: [orb-tools/pack, test-helm-argo-rollout]
+          filters: *release-filters

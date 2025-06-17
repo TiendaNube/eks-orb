@@ -4,10 +4,15 @@ CircleCI build job.
 
 ## View in the orb registry
 See the [eks-orb in the registry](https://circleci.com/orbs/registry/orb/tiendanube/eks)
-for more the full details of jobs, commands, and executors available in this
-orb.
+for more the full details of jobs, commands, and executors available in this ORB.
+Or check via CircleCI CLI using:
+```bash
+circleci orb info tiendanube/eks@1.8.0
+```
 
-## Setup required to use this orb
+## Usage
+
+### Setup required to use this orb
 The following **required** dependencies must be configured in CircleCI in order to use this orb:
 
 * **AWS_ACCESS_KEY_ID** - environment variable for AWS login
@@ -16,7 +21,7 @@ The following **required** dependencies must be configured in CircleCI in order 
 For more information on how to properly set up environment variables on CircleCI, read the docs:
 [environment-variable-in-a-project](https://circleci.com/docs/2.0/env-vars/#setting-an-environment-variable-in-a-project)
 
-## Sample use in CircleCI config.yml
+### Sample use in CircleCI config.yml
 
 - Deploy
 
