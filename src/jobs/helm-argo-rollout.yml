@@ -108,7 +108,10 @@ steps:
       condition: << parameters.s3-chart-repo >>
       name: Add additional helm repo
       steps:
-        - run: helmv3 repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+        - run:
+            name: Add additional helm repo
+            command: >
+              helmv3 repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
 
   - run:
       name: Generate ArgoCD Application values
@@ -201,5 +204,8 @@ steps:
       condition: << parameters.rollout-status >>
       name: Rollout status
       steps:
-        - run: |
-            kubectl argo rollouts get rollout << parameters.release-name >> -n << parameters.namespace >> --watch <<# parameters.rollout-status-watch >>--watch<</parameters.rollout-status-watch>> <<# parameters.rollout-status-timeout >>--timeout << parameters.rollout-status-timeout >><</parameters.rollout-status-timeout>>
+        - run:
+            name: Rollout status
+            command: >
+              kubectl argo rollouts get rollout << parameters.release-name >> -n << parameters.namespace >> --watch 
+              <<# parameters.rollout-status-timeout >>--timeout << parameters.rollout-status-timeout >><</parameters.rollout-status-timeout>>

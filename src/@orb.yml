@@ -1,6 +1,7 @@
 version: 2.1
 
-description: An orb for working with Amazon EKS
+description: An ORB for working with Amazon EKS, allowing to deploy Helm charts and Argo Rollouts.
 
 display:
   home_url: https://github.com/TiendaNube/eks-orb
+  source_url: https://github.com/TiendaNube/eks-orb

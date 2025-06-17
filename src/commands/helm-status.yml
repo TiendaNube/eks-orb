@@ -9,10 +9,12 @@ parameters:
     type: string
 
 steps:
-  - run: |
-      for i in {1..10}; do
-        sleep 1
-        echo "========================================================"
-        echo "Checking release status (attempt $i/10)..."
-        helmv3 status << parameters.release-name >> --namespace << parameters.namespace >>
-      done
+  - run:
+      name: Check release status
+      command: >
+        for i in {1..10}; do
+          sleep 1
+          echo "========================================================"
+          echo "Checking release status (attempt $i/10)..."
+          helmv3 status << parameters.release-name >> --namespace << parameters.namespace >>
+        done
