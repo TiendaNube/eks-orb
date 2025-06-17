@@ -1,6 +1,7 @@
 version: 2.1
 
 orbs:
+  aws-cli: circleci/aws-cli@4.2.3
   orb-tools: circleci/orb-tools@12.3.1
   eks: {}
 
