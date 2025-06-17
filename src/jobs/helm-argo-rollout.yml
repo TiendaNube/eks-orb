@@ -1,0 +1,205 @@
+description: Deploy the given Helm chart as an Argo Rollout to EKS Cluster
+
+executor: << parameters.executor >>
+
+parameters:
+  executor:
+    description: Executor to use for this job
+    type: executor
+    default: default
+  cluster-name:
+    description: EKS cluster name
+    type: string
+  region:
+    description: AWS region where the eks cluster is located
+    type: string
+  s3-chart-repo:
+    description: Additional helm chart repository
+    type: string
+    default: tiendanube-charts
+  chart:
+    description: Chart that will be installed
+    type: string
+    default: tiendanube-charts/argocd-apps
+  release-name:
+    description: Helm release name
+    type: string
+  values-file:
+    description: Helm values file for the service deployment
+    type: string
+  namespace:
+    description: Namespace where the chart will be installed
+    type: string
+  image-tag:
+    description: Which image tag will be installed
+    type: string
+    default: ${CIRCLE_SHA1:0:7}
+  args:
+    description: args to be used as helm client args
+    type: string
+    default: ""
+  checkout:
+    description: Boolean for whether or not to checkout as a first step. Default is true.
+    type: boolean
+    default: true
+  resource-name:
+    description: The name of the resource to be used. For Argo Rollouts, this should be 'rollout'
+    type: string
+    default: 'rollout'
+  set-path-annotation:
+    description: |
+      Path annotation
+      Example: .spec.template.metadata.annotations.
+    type: string
+    default: '.spec.template.metadata.annotations.'
+  rollout-status:
+    description: |
+      Get the status of the rollout.
+      This can only be used for resource types that are valid for usage with `kubectl rollout` subcommands.
+    type: boolean
+    default: true
+  rollout-status-watch:
+    description: Whether to watch the status of the latest rollout until it's done.
+    type: boolean
+    default: true
+  rollout-status-timeout:
+    description: The length of time to wait before ending the watch, zero means never. Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
+    type: string
+    default: '5m'
+  # New parameters for ArgoCD Application configuration
+  argocd-namespace:
+    description: Namespace where ArgoCD is installed
+    type: string
+    default: argocd
+  source-repo-url:
+    description: Git repository URL containing the service manifests
+    type: string
+  source-target-revision:
+    description: Git branch/tag to deploy
+    type: string
+    default: main
+  source-path:
+    description: Path to service manifests in the repository
+    type: string
+  destination-server:
+    description: Kubernetes cluster URL
+    type: string
+    default: https://kubernetes.default.svc
+  project:
+    description: ArgoCD project name
+    type: string
+    default: tiendanube
+  sync-policy:
+    description: |
+      JSON string containing sync policy configuration
+      Example: {"syncOptions":{"validate":true,"pruneLast":true},"automated":{"prune":true,"selfHeal":true}}
+    type: string
+    default: '{"syncOptions":{"validate":true,"pruneLast":true},"automated":{"prune":true,"selfHeal":true}}'
+
+steps:
+  - when:
+      condition: << parameters.checkout >>
+      steps:
+        - checkout
+  - update-kubeconfig-with-authenticator:
+      cluster-name: << parameters.cluster-name >>
+      aws-region: << parameters.region >>
+  - when:
+      condition: << parameters.s3-chart-repo >>
+      name: Add additional helm repo
+      steps:
+        - run: helmv3 repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+
+  - run:
+      name: Generate ArgoCD Application values
+      command: |
+        cat \<< EOF > /tmp/argocd-app-values.yaml
+        argocd:
+          namespace: << parameters.argocd-namespace >>
+        
+        destination:
+          namespace: << parameters.namespace >>
+          server: << parameters.destination-server >>
+        
+        source:
+          repoURL: << parameters.source-repo-url >>
+          targetRevision: << parameters.source-target-revision >>
+          path: << parameters.source-path >>
+          helm:
+            parameters:
+              - name: image.tag
+                value: "<< parameters.image-tag >>"
+            file: |
+              $(cat << parameters.values-file >>)
+        
+        project: << parameters.project >>
+        
+        syncPolicy: << parameters.sync-policy >>
+        EOF
+
+  - annotation:
+      app-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+      resource-name: << parameters.resource-name >>
+      set-name: "kubernetes.io/previous-tag"
+      get-current-name: kubernetes\.io\/current-tag
+      set-path-annotation: << parameters.set-path-annotation >>
+      get-current-value: true
+      ignore-not-found: true
+
+  - annotation:
+      app-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+      resource-name: << parameters.resource-name >>
+      set-name: "kubernetes.io/current-tag"
+      set-value: "<< parameters.image-tag >>"
+      ignore-not-found: true
+
+  - run:
+      name: Phase 1 - Install Argo Application
+      command: >
+        helmv3 upgrade
+        --install << parameters.release-name >>
+        --values /tmp/argocd-app-values.yaml
+        <<#parameters.args>><<parameters.args>><</parameters.args>>
+        --namespace << parameters.namespace >>
+        << parameters.chart >>
+
+  - helm-status:
+      release-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+
+  - run:
+      name: Phase 2 - Traffic Argo Application
+      command: >
+        helmv3 upgrade
+        --install << parameters.release-name >>
+        --values /tmp/argocd-app-values.yaml
+        <<#parameters.args>><<parameters.args>><</parameters.args>>
+        --namespace << parameters.namespace >>
+        << parameters.chart >>
+
+  - helm-status:
+      release-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+
+  - run:
+      name: Phase 3 - Completed Argo Application
+      command: >
+        helmv3 upgrade
+        --install << parameters.release-name >>
+        --values /tmp/argocd-app-values.yaml
+        <<#parameters.args>><<parameters.args>><</parameters.args>>
+        --namespace << parameters.namespace >>
+        << parameters.chart >>
+
+  - helm-status:
+      release-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+
+  - when:
+      condition: << parameters.rollout-status >>
+      name: Rollout status
+      steps:
+        - run: |
+            kubectl argo rollouts get rollout << parameters.release-name >> -n << parameters.namespace >> --watch <<# parameters.rollout-status-watch >>--watch<</parameters.rollout-status-watch>> <<# parameters.rollout-status-timeout >>--timeout << parameters.rollout-status-timeout >><</parameters.rollout-status-timeout>>

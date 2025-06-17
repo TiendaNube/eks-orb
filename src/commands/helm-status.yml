@@ -1,0 +1,18 @@
+description: Allows use the helm client to check the status of a release
+
+parameters:
+  release-name:
+    description: The name of the release to check the status
+    type: string
+  namespace:
+    description: The namespace to check the status of the release
+    type: string
+
+steps:
+  - run: |
+      for i in {1..10}; do
+        sleep 1
+        echo "========================================================"
+        echo "Checking release status (attempt $i/10)..."
+        helmv3 status << parameters.release-name >> --namespace << parameters.namespace >>
+      done
