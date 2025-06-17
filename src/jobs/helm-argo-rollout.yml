@@ -106,10 +106,9 @@ steps:
       aws-region: << parameters.region >>
   - when:
       condition: << parameters.s3-chart-repo >>
-      name: Add additional helm repo
       steps:
         - run:
-            name: Add additional helm repo
+            name: Add additional helm repo to helm v3
             command: >
               helmv3 repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
 
@@ -202,7 +201,6 @@ steps:
 
   - when:
       condition: << parameters.rollout-status >>
-      name: Rollout status
       steps:
         - run:
             name: Rollout status
