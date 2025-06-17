@@ -119,11 +119,11 @@ steps:
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
           namespace: << parameters.argocd-namespace >>
-        
+
         destination:
           namespace: << parameters.namespace >>
           server: << parameters.destination-server >>
-        
+
         source:
           repoURL: << parameters.source-repo-url >>
           targetRevision: << parameters.source-target-revision >>
@@ -134,9 +134,9 @@ steps:
                 value: "<< parameters.image-tag >>"
             file: |
               $(cat << parameters.values-file >>)
-        
+
         project: << parameters.project >>
-        
+
         syncPolicy: << parameters.sync-policy >>
         EOF
 
@@ -207,5 +207,5 @@ steps:
         - run:
             name: Rollout status
             command: >
-              kubectl argo rollouts get rollout << parameters.release-name >> -n << parameters.namespace >> --watch 
+              kubectl argo rollouts get rollout << parameters.release-name >> -n << parameters.namespace >> --watch
               <<# parameters.rollout-status-timeout >>--timeout << parameters.rollout-status-timeout >><</parameters.rollout-status-timeout>>
