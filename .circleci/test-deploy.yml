@@ -38,7 +38,7 @@ workflows:
           s3-chart-repo: tiendanube/helm-charts
           values-file: resources/values-test-rollout.yaml
           filters: *filters
-          requires: [test-helm-argo-rollout-approval]
+          requires: test-helm-argo-deploy-approval
       # The orb must be re-packed for publishing, and saved to the workspace.
       - orb-tools/pack:
           org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
@@ -49,5 +49,5 @@ workflows:
           orb_name: tiendanube/eks-orb
           vcs_type: << pipeline.project.type >>
           pub_type: production
-          requires: [orb-tools/pack, test-helm-argo-rollout]
+          requires: [orb-tools/pack, test-helm-argo-deploy]
           filters: *release-filters
