@@ -36,7 +36,7 @@ workflows:
           release-name: rollouts-circleci-integration-test
           s3-chart-repo: tiendanube-charts
           chart: microservices-v6
-          values-file: resources/values-test-rollout.yml
+          values-file: .circleci/resources/values-test-rollout.yml
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
