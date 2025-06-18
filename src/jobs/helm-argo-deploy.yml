@@ -152,7 +152,7 @@ steps:
         --values /tmp/argocd-app-values.yaml
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
-        argocd-apps
+        tiendanube-charts/argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>
@@ -166,7 +166,7 @@ steps:
         --values /tmp/argocd-app-values.yaml
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
-        argocd-apps
+        tiendanube-charts/argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>
@@ -180,7 +180,7 @@ steps:
         --values /tmp/argocd-app-values.yaml
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
-        argocd-apps
+        tiendanube-charts/argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>
