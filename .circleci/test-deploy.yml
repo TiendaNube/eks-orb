@@ -35,7 +35,7 @@ workflows:
           namespace: argocd-rollouts-integration-test
           release-name: rollouts-circleci-integration-test
           s3-chart-repo: tiendanube-charts
-          values-file: resources/values-test-rollout.yaml
+          values-file: resources/values-test-rollout.yml
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
