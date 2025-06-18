@@ -34,7 +34,7 @@ workflows:
           region: ${AWS_REGION}
           namespace: argocd-rollouts-integration-test
           release-name: rollouts-circleci-integration-test
-          s3-chart-repo: tiendanube/helm-charts
+          s3-chart-repo: tiendanube-charts
           values-file: resources/values-test-rollout.yaml
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
