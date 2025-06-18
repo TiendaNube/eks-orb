@@ -15,16 +15,12 @@ release-filters: &release-filters
   tags:
     only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
 
-workflows:
-  test-deploy:
-    jobs:
-      - test-helm-argo-deploy-approval:
-          type: approval
-          filters: *filters
+jobs:
+  test-helm-argo-deploy:
+    executor: eks/default
+    steps:
+      - checkout
       - eks/helm-argo-deploy:
-          name: test-helm-argo-deploy
-          context: microservices
-          executor: eks/default
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
@@ -37,8 +33,17 @@ workflows:
           release-name: rollouts-circleci-integration-test
           s3-chart-repo: tiendanube/helm-charts
           values-file: resources/values-test-rollout.yaml
+
+workflows:
+  test-deploy:
+    jobs:
+      - test-helm-argo-deploy-approval:
+          type: approval
           filters: *filters
-          requires: test-helm-argo-deploy-approval
+      - test-helm-argo-deploy:
+          context: microservices
+          requires: [test-helm-argo-deploy-approval]
+          filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
       - orb-tools/pack:
           org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
