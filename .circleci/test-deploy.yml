@@ -18,11 +18,11 @@ release-filters: &release-filters
 workflows:
   test-deploy:
     jobs:
-      - test-helm-argo-rollout-approval:
+      - test-helm-argo-deploy-approval:
           type: approval
           filters: *filters
-      - eks/helm-argo-rollout:
-          name: test-helm-argo-rollout
+      - eks/helm-argo-deploy:
+          name: test-helm-argo-deploy
           context: microservices
           executor: eks/default
           pre-steps:

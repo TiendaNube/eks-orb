@@ -1,4 +1,4 @@
-description: Deploy the given Helm chart as an Argo Rollout to EKS Cluster
+description: Deploy the given Helm chart as an Argo Application to EKS Cluster
 
 executor: << parameters.executor >>
 
@@ -67,20 +67,18 @@ parameters:
     type: string
     default: '5m'
   # New parameters for ArgoCD Application configuration
-  argocd-namespace:
-    description: Namespace where ArgoCD is installed
-    type: string
-    default: argocd
   source-repo-url:
     description: Git repository URL containing the service manifests
     type: string
+    default: ${CIRCLE_REPOSITORY_URL}
   source-target-revision:
     description: Git branch/tag to deploy
     type: string
-    default: main
+    default: ${CIRCLE_BRANCH}
   source-path:
     description: Path to service manifests in the repository
     type: string
+    default: '{{ .Values.sourcePath }}'
   destination-server:
     description: Kubernetes cluster URL
     type: string
@@ -89,12 +87,6 @@ parameters:
     description: ArgoCD project name
     type: string
     default: tiendanube
-  sync-policy:
-    description: |
-      JSON string containing sync policy configuration
-      Example: {"syncOptions":{"validate":true,"pruneLast":true},"automated":{"prune":true,"selfHeal":true}}
-    type: string
-    default: '{"syncOptions":{"validate":true,"pruneLast":true},"automated":{"prune":true,"selfHeal":true}}'
 
 steps:
   - when:
@@ -117,7 +109,7 @@ steps:
       command: |
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
-          namespace: << parameters.argocd-namespace >>
+          namespace: << parameters.namespace >>
 
         destination:
           namespace: << parameters.namespace >>
@@ -136,7 +128,15 @@ steps:
 
         project: << parameters.project >>
 
-        syncPolicy: << parameters.sync-policy >>
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+          - ApplyOutOfSyncOnly=true
+          - CreateNamespace=true
+          - PruneLast=true
+          - Validate=true
         EOF
 
   - annotation:
