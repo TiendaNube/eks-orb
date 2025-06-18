@@ -20,7 +20,6 @@ parameters:
   chart:
     description: Chart that will be installed
     type: string
-    default: tiendanube-charts/argocd-apps
   release-name:
     description: Helm release name
     type: string
@@ -67,18 +66,6 @@ parameters:
     type: string
     default: '5m'
   # New parameters for ArgoCD Application configuration
-  source-repo-url:
-    description: Git repository URL containing the service manifests
-    type: string
-    default: ${CIRCLE_REPOSITORY_URL}
-  source-target-revision:
-    description: Git branch/tag to deploy
-    type: string
-    default: ${CIRCLE_BRANCH}
-  source-path:
-    description: Path to service manifests in the repository
-    type: string
-    default: '{{ .Values.sourcePath }}'
   destination-server:
     description: Kubernetes cluster URL
     type: string
@@ -116,9 +103,9 @@ steps:
           server: << parameters.destination-server >>
 
         source:
-          repoURL: << parameters.source-repo-url >>
-          targetRevision: << parameters.source-target-revision >>
-          path: << parameters.source-path >>
+          chart: << parameters.chart >>
+          repoURL: s3://<< parameters.s3-chart-repo >>/
+          targetRevision: 1.6.9
           helm:
             parameters:
               - name: image.tag
@@ -165,7 +152,7 @@ steps:
         --values /tmp/argocd-app-values.yaml
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
-        << parameters.chart >>
+        argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>
@@ -179,7 +166,7 @@ steps:
         --values /tmp/argocd-app-values.yaml
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
-        << parameters.chart >>
+        argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>
@@ -193,7 +180,7 @@ steps:
         --values /tmp/argocd-app-values.yaml
         <<#parameters.args>><<parameters.args>><</parameters.args>>
         --namespace << parameters.namespace >>
-        << parameters.chart >>
+        argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>
