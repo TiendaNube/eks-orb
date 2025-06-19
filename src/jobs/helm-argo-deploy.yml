@@ -6,7 +6,7 @@ parameters:
   executor:
     description: Executor to use for this job
     type: executor
-    default: default
+    default: argo
   cluster-name:
     description: EKS cluster name
     type: string
@@ -64,7 +64,12 @@ parameters:
   rollout-status-timeout:
     description: The length of time to wait before ending the watch, zero means never. Any other values should contain a corresponding time unit (e.g. 1s, 2m, 3h).
     type: string
-    default: '5m'
+    default: '2m'
+  mesh:
+    default: false
+    description: >
+      check if enabled label istio on namespace
+    type: boolean
   # New parameters for ArgoCD Application configuration
   destination-server:
     description: Kubernetes cluster URL
@@ -80,20 +85,127 @@ steps:
       condition: << parameters.checkout >>
       steps:
         - checkout
+
   - update-kubeconfig-with-authenticator:
       cluster-name: << parameters.cluster-name >>
       aws-region: << parameters.region >>
+
+  - run:
+      name: Update helmv3 to v3.18.2
+      command: |
+        cd /tmp
+        curl -o helm-v3.18.2 https://get.helm.sh/helm-v3.18.2-linux-amd64.tar.gz
+        tar -zxvf helm-v3.18.2 && chmod +x ./linux-amd64/helm && sudo mv ./linux-amd64/helm /usr/local/bin/helmv3 && rm -rf ./linux-amd64 helm-v3.18.2
+        helmv3 version
+
+  - run:
+      name: Install Argo Rollouts Kubectl plugin
+      command: |
+        cd /tmp
+        curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-linux-amd64
+        chmod +x ./kubectl-argo-rollouts-linux-amd64
+        sudo mv ./kubectl-argo-rollouts-linux-amd64 /usr/local/bin/kubectl-argo-rollouts
+        kubectl argo rollouts version
+
   - when:
       condition: << parameters.s3-chart-repo >>
       steps:
         - run:
             name: Add additional helm repo to helm v3
-            command: >
+            command: |
               helmv3 repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+              helmv3 repo update
+
+  - run:
+      name: Extract previous chart name
+      command: |
+        set +e
+        # Define the yq expression for extracting the deployed chart name
+        # This expression filters the history to find the last deployed chart and removes the version suffix
+        # The version suffix is assumed to be in the format -X.Y.Z where X, Y, and Z are integers
+        # The sed command removes the version suffix from the chart name
+        YQ_EXPR='map(select(.status == "deployed")) | .[0].chart // ""'
+        # Run helm history and capture stderr and exit code
+        HELM_HISTORY_OUTPUT=$(helmv3 history \
+          rollouts-circleci-integration-test \
+          --namespace argocd-rollouts-integration-test -o yaml 2>&1)
+        HELM_EXIT_CODE=$?
+        # Check for 'release: not found' error or any non-zero exit code
+        if [ $HELM_EXIT_CODE -ne 0 ]; then
+          echo "$HELM_HISTORY_OUTPUT"
+          if echo "$HELM_HISTORY_OUTPUT" | grep -q 'release: not found'; then
+            echo "" > /tmp/previous_chart_name
+            exit 0
+          else
+            exit 1
+          fi
+        fi
+        echo "$HELM_HISTORY_OUTPUT" | grep -v '^WARNING:' > /tmp/helm_history.yaml
+        echo "------------------------------------------------------"
+        echo "Helm History:"
+        echo "------------------------------------------------------"
+        cat /tmp/helm_history.yaml
+        echo "------------------------------------------------------"
+        yq eval "$YQ_EXPR" /tmp/helm_history.yaml | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//' > /tmp/previous_chart_name
+        # Validate that previous_chart_name can only be microservices-v6 or empty
+        previous_chart_name=$(cat /tmp/previous_chart_name)
+        if [ -n "$previous_chart_name" ] && [ "$previous_chart_name" != "microservices-v6" ]; then
+          echo "Error: previous_chart_name must be 'microservices-v6' or empty"
+          exit 1
+        fi
+        echo "------------------------------------------------------"
+        echo "Previous chart name: $previous_chart_name"
+        echo "------------------------------------------------------"
+
+  - run:
+      name: Extract migration-phase label from Rollout
+      command: |
+        # Define the migration phase label key
+        export MIGRATION_PHASE_LABEL="canary.tiendanube.com/migration-phase"
+        # Render Helm chart to a temporary file
+        helmv3 template \
+          << parameters.release-name >> \
+          --values << parameters.values-file >> \
+          --namespace << parameters.namespace >> \
+          --set-string image.tag="<< parameters.image-tag >>" \
+          --set-string previousChartName="$(cat /tmp/previous_chart_name)" \
+          --set mesh=<< parameters.mesh >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          --dry-run=server \
+          << parameters.chart >> > /tmp/rendered.yaml
+        echo "------------------------------------------------------"
+        echo "Rendered YAML file content:"
+        echo "------------------------------------------------------"
+        cat /tmp/rendered.yaml
+        echo "------------------------------------------------------"
+        # Define the yq expression for extracting the migration phase label
+        YQ_EXPR='select(.kind == "Rollout") | .metadata.labels["'"$MIGRATION_PHASE_LABEL"'"]'
+        # Extract the migration phase label (empty string if not found)
+        MIGRATION_PHASE=$(yq "$YQ_EXPR" /tmp/rendered.yaml)
+        # Default to "completed" if not found or is 'null'
+        if [ -n "$MIGRATION_PHASE" ] && [ "$MIGRATION_PHASE" != "null" ]; then
+          case "$MIGRATION_PHASE" in
+            initial|traffic|completed)
+              echo "$MIGRATION_PHASE" > /tmp/migration-phase-label
+              ;;
+            *)
+              echo "Error: MIGRATION_PHASE must be one of: initial, traffic, completed"
+              echo "Current MIGRATION_PHASE value: $MIGRATION_PHASE"
+              exit 1
+              ;;
+          esac
+        else
+          echo "completed" > /tmp/migration-phase-label
+        fi
+        echo "------------------------------------------------------"
+        echo "Migration phase label value: $(cat /tmp/migration-phase-label)"
+        echo "------------------------------------------------------"
 
   - run:
       name: Generate ArgoCD Application values
       command: |
+        VALUES=$(cat << parameters.values-file >>)
+        VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
           namespace: argocd
@@ -103,15 +215,20 @@ steps:
           server: << parameters.destination-server >>
 
         source:
-          path: << parameters.chart >>
+          path: microservices-v8
           repoURL: https://github.com/TiendaNube/helm-charts
           targetRevision: HEAD
           helm:
+            releaseName: << parameters.release-name >>
             parameters:
               - name: image.tag
                 value: "<< parameters.image-tag >>"
-            file: |
-              $(cat << parameters.values-file >>)
+              - name: canaryMigrationPhaseOverride
+                value: "$(cat /tmp/migration-phase-label)"
+              - name: previousChartName
+                value: "$(cat /tmp/previous_chart_name)"
+            file: |-
+              $VALUES_INDENTED
 
         project: << parameters.project >>
 
@@ -124,10 +241,12 @@ steps:
             createNamespace: true
             pruneLast: true
             validate: true
+            replace: false
         EOF
+        cat /tmp/argocd-app-values.yaml
 
   - annotation:
-      app-name: << parameters.release-name >>
+      app-name: << parameters.release-name >>-app
       namespace: << parameters.namespace >>
       resource-name: << parameters.resource-name >>
       set-name: "kubernetes.io/previous-tag"
@@ -137,7 +256,7 @@ steps:
       ignore-not-found: true
 
   - annotation:
-      app-name: << parameters.release-name >>
+      app-name: << parameters.release-name >>-app
       namespace: << parameters.namespace >>
       resource-name: << parameters.resource-name >>
       set-name: "kubernetes.io/current-tag"
@@ -145,55 +264,33 @@ steps:
       ignore-not-found: true
 
   - run:
-      name: Phase 1 - Install Argo Application
-      command: >
-        helmv3 upgrade
-        --install << parameters.release-name >>
-        --values /tmp/argocd-app-values.yaml
-        <<#parameters.args>><<parameters.args>><</parameters.args>>
-        --namespace << parameters.namespace >>
-        --version 0.1.1
-        tiendanube-charts-preview/argocd-apps
+      name: Install Argo Application
+      command: |
+        helmv3 upgrade \
+          --create-namespace \
+          --install \
+          << parameters.release-name >>-app \
+          --values << parameters.values-file >> \
+          --values /tmp/argocd-app-values.yaml \
+          --namespace << parameters.namespace >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          << parameters.s3-chart-repo >>/argocd-apps
 
   - helm-status:
-      release-name: << parameters.release-name >>
+      release-name: << parameters.release-name >>-app
       namespace: << parameters.namespace >>
-
-  - run:
-      name: Phase 2 - Traffic Argo Application
-      command: >
-        helmv3 upgrade
-        --install << parameters.release-name >>
-        --values /tmp/argocd-app-values.yaml
-        <<#parameters.args>><<parameters.args>><</parameters.args>>
-        --namespace << parameters.namespace >>
-        --version 0.1.1
-        tiendanube-charts-preview/argocd-apps
-
-  - helm-status:
-      release-name: << parameters.release-name >>
-      namespace: << parameters.namespace >>
-
-  - run:
-      name: Phase 3 - Completed Argo Application
-      command: >
-        helmv3 upgrade
-        --install << parameters.release-name >>
-        --values /tmp/argocd-app-values.yaml
-        <<#parameters.args>><<parameters.args>><</parameters.args>>
-        --namespace << parameters.namespace >>
-        --version 0.1.1
-        tiendanube-charts-preview/argocd-apps
-
-  - helm-status:
-      release-name: << parameters.release-name >>
-      namespace: << parameters.namespace >>
+      timeout: << parameters.rollout-status-timeout >>
 
   - when:
       condition: << parameters.rollout-status >>
       steps:
         - run:
             name: Rollout status
-            command: >
-              kubectl argo rollouts get rollout << parameters.release-name >> -n << parameters.namespace >> --watch
-              <<# parameters.rollout-status-timeout >>--timeout << parameters.rollout-status-timeout >><</parameters.rollout-status-timeout>>
+            command: |
+              # Check rollout status with optional timeout
+              <<# parameters.rollout-status-timeout >>
+              timeout << parameters.rollout-status-timeout >> \
+              <</parameters.rollout-status-timeout>>
+              kubectl argo rollouts get rollout << parameters.release-name >> \
+                --namespace << parameters.namespace >> \
+                --watch

@@ -35,7 +35,7 @@ workflows:
           namespace: argocd-rollouts-integration-test
           release-name: rollouts-circleci-integration-test
           s3-chart-repo: tiendanube-charts-preview
-          chart: microservices-v6
+          chart: tiendanube-charts-preview/microservices-v8
           values-file: .circleci/resources/values-test-rollout.yml
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
