@@ -103,9 +103,9 @@ steps:
           server: << parameters.destination-server >>
 
         source:
-          chart: << parameters.chart >>
-          repoURL: s3://<< parameters.s3-chart-repo >>/
-          targetRevision: 1.6.9
+          path: << parameters.chart >>
+          repoURL: https://github.com/TiendaNube/helm-charts
+          targetRevision: HEAD
           helm:
             parameters:
               - name: image.tag
