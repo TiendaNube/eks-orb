@@ -96,7 +96,7 @@ steps:
       command: |
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
-          namespace: << parameters.namespace >>
+          namespace: argocd
 
         destination:
           namespace: << parameters.namespace >>
