@@ -45,11 +45,9 @@ steps:
       aws-region: << parameters.region >>
   - when:
       condition: << parameters.s3-chart-repo >>
+      name: Add additional helm repo to helm v3
       steps:
-        - run:
-            name: Add additional helm repo to helm v3
-            command: >
-              helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
+        - run: helm repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
   - run:
       name: Upgrade helm chart
       command: >
