@@ -1,4 +1,4 @@
-description: Allows use the helm client to check the status of a release
+description: Allows use the argo client to check the status of a rollout
 
 parameters:
   release-name:
@@ -15,18 +15,10 @@ parameters:
     description: Maximum number of seconds to run status checks before quitting
     type: string
     default: '1m'
-  show-description:
-    description: Show the description of the release.
-    type: boolean
-    default: true
-  show-resources:
-    description: Show the resources of the release.
-    type: boolean
-    default: true
 
 steps:
   - run:
-      name: Check release status
+      name: Check Argo rollout status
       command: |
           set +e
           timeout << parameters.timeout >> bash -o pipefail -c '
@@ -34,21 +26,20 @@ steps:
             while true; do
               echo "========================================================"
               echo "Checking release status (attempt $i)..."
-              output=$(helmv3 status << parameters.release-name >> --namespace << parameters.namespace >> \
-                <<# parameters.show-description >>--show-desc<</parameters.show-description>> \
-                <<# parameters.show-resources >>--show-resources<</parameters.show-resources>>)
+              output=$(kubectl argo rollouts get rollout << parameters.release-name >> \
+                --namespace << parameters.namespace >>)
               echo "$output"
-              status=$(echo "$output" | grep "^STATUS:" | awk '"'"'{print $2}'"'"')
+              status=$(echo "$output" | grep "^Status:" | awk '"'"'{print $3}'"'"')
               case "$status" in
-                deployed)
-                  echo "Release is deployed."
+                Healthy|Completed)
+                  echo "Rollout is $status."
                   exit 0
                   ;;
-                failed|superseded|uninstalled)
+                Degraded|Error|Aborted)
                   echo "Release status is $status. Exiting with failure."
                   exit 1
                   ;;
-                pending-install|pending-upgrade|pending-rollback)
+                Progressing|Paused)
                   echo "Release status is $status. Waiting..."
                   ;;
                 *)

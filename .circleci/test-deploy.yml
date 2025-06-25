@@ -37,6 +37,9 @@ workflows:
           s3-chart-repo: tiendanube-charts-preview
           chart: tiendanube-charts-preview/microservices-v8
           values-file: .circleci/resources/values-test-rollout.yml
+          args: |
+            --set labels.DD_VERSION=d816bd2 \
+            --set-string labels."tags\.datadoghq\.com/version"=d816bd6 \
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.

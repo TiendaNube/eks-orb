@@ -202,10 +202,24 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
+      environment:
+        HELM_PARAMETERS: <<parameters.args>>
+      name: Read Helm Parameters
+      shell: /usr/bin/env python3
+      command: <<include(scripts/parse_helm_parameters.py)>>
+
+  - run:
       name: Generate ArgoCD Application values
       command: |
+        echo "------------------------------------------------------"
+        echo "Rendered Helm Args:"
+        echo "------------------------------------------------------"
+        cat /tmp/helm-args.yaml
+        echo "------------------------------------------------------"
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
+        HELM_ARGS=$(cat /tmp/helm-args.yaml)
+        HELM_ARGS_INDENTED=$(echo "$HELM_ARGS" | awk 'NR==1{print $0; next} {print "      "$0}')
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
           namespace: argocd
@@ -227,6 +241,7 @@ steps:
                 value: "$(cat /tmp/migration-phase-label)"
               - name: previousChartName
                 value: "$(cat /tmp/previous_chart_name)"
+              $HELM_ARGS_INDENTED
             file: |-
               $VALUES_INDENTED
 
@@ -284,13 +299,7 @@ steps:
   - when:
       condition: << parameters.rollout-status >>
       steps:
-        - run:
-            name: Rollout status
-            command: |
-              # Check rollout status with optional timeout
-              <<# parameters.rollout-status-timeout >>
-              timeout << parameters.rollout-status-timeout >> \
-              <</parameters.rollout-status-timeout>>
-              kubectl argo rollouts get rollout << parameters.release-name >> \
-                --namespace << parameters.namespace >> \
-                --watch
+        - argo-rollout-status:
+            release-name: << parameters.release-name >>
+            namespace: << parameters.namespace >>
+            timeout: << parameters.rollout-status-timeout >>
