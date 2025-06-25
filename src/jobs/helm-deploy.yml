@@ -139,7 +139,6 @@ steps:
 
   - unless:
       condition: << parameters.helmv3 >>
-      name: Check the release status
       steps:
         - run: |
             sleep 10
