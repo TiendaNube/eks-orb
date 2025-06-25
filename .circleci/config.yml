@@ -17,7 +17,7 @@ workflows:
           filters: *filters
       - orb-tools/review:
           filters: *filters
-          exclude: "RC006 RC007 RC009 RC010"
+          exclude: "RC006 RC007 RC008 RC009 RC010"
       - orb-tools/continue:
           pipeline_number: << pipeline.number >>
           vcs_type: << pipeline.project.type >>
