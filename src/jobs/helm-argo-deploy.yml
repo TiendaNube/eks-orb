@@ -32,7 +32,6 @@ parameters:
   image-tag:
     description: Which image tag will be installed
     type: string
-    default: ${CIRCLE_SHA1:0:7}
   args:
     description: args to be used as helm client args
     type: string
@@ -94,8 +93,8 @@ steps:
       name: Update helmv3 to v3.18.2
       command: |
         cd /tmp
-        curl -o helm-v3.18.2 https://get.helm.sh/helm-v3.18.2-linux-amd64.tar.gz
-        tar -zxvf helm-v3.18.2 && chmod +x ./linux-amd64/helm && sudo mv ./linux-amd64/helm /usr/local/bin/helmv3 && rm -rf ./linux-amd64 helm-v3.18.2
+        curl -Lo helm-v3.18.2-linux-amd64.tar.gz https://get.helm.sh/helm-v3.18.2-linux-amd64.tar.gz
+        tar -zxvf helm-v3.18.2-linux-amd64.tar.gz && chmod +x ./linux-amd64/helm && sudo mv ./linux-amd64/helm /usr/local/bin/helmv3 && rm -rf ./linux-amd64 helm-v3.18.2-linux-amd64.tar.gz
         helmv3 version
 
   - run:
