@@ -3,10 +3,10 @@
 import re
 import os
 
-heml_parameters = os.environ.get("HELM_PARAMETERS", "")
+helm_parameters = os.environ.get("HELM_PARAMETERS", "")
 
 pattern = r'(--set[^\s]*)\s+([^\s=]+|[^\s=]+\.\"[^\"]+\")=([^\s\\]+)'
-matches = re.findall(pattern, heml_parameters)
+matches = re.findall(pattern, helm_parameters)
 
 allowed_opts = {'--set', '--set-string'}
 
