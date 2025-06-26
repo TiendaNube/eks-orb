@@ -221,6 +221,10 @@ steps:
         echo "${HELM_PARAMETERS}"
 
   - run:
+      name: Read Helm Parameters with bash
+      command: <<include(scripts/parse_helm_parameters.sh)>>
+
+  - run:
       name: Read Helm Parameters
       shell: /usr/bin/env python3
       command: <<include(scripts/parse_helm_parameters.py)>>
