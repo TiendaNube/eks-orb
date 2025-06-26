@@ -211,8 +211,18 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
+      name: Export parameters as environment variable
+      command: |
+        echo "export HELM_PARAMETERS='<<parameters.args>>'" >> $BASH_ENV
+
+  - run:
+      name: DEBUG ARGS
+      command: |
+        echo "${HELM_PARAMETERS}"
+
+  - run:
       environment:
-        HELM_PARAMETERS: <<parameters.args>>
+        HELM_PARAMETERS: ${HELM_PARAMETERS}
       name: Read Helm Parameters
       shell: /usr/bin/env python3
       command: <<include(scripts/parse_helm_parameters.py)>>
