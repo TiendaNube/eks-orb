@@ -211,23 +211,8 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Export parameters as environment variable
-      command: |
-        echo "export HELM_PARAMETERS='<<parameters.args>>'" >> $BASH_ENV
-
-  - run:
-      name: DEBUG ARGS
-      command: |
-        echo "${HELM_PARAMETERS}"
-
-  - run:
-      name: Read Helm Parameters with bash
-      command: <<include(scripts/parse_helm_parameters.sh)>>
-
-  - run:
       name: Read Helm Parameters
-      shell: /usr/bin/env python3
-      command: <<include(scripts/parse_helm_parameters.py)>>
+      command: HELM_PARAMETERS='<<parameters.args>>' python3 scripts/parse_helm_parameters.py
 
   - run:
       name: Generate ArgoCD Application values
