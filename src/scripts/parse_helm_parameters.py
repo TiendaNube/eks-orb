@@ -29,3 +29,5 @@ for opt, key, value in matches:
 with open(helm_parameters_output_file, 'w') as f:
     for item in result:
         f.write(f"- name: {item['name']}\n  value: {item['value']}\n")
+        # Debugging message to display in CircleCI console
+        print(f"- name: {item['name']}\n  value: {item['value']}\n")
