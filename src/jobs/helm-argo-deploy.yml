@@ -213,7 +213,7 @@ steps:
   - run:
       name: Export parameter ARGS to file
       command: |
-        echo "<<parameters.args>>" > /tmp/helm-args-input.yaml
+        echo -e "<<parameters.args>>" > /tmp/helm-args-input.yaml
 
   - run:
       name: DEBUG ARGS INPUT FILE
