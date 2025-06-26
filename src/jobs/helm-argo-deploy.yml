@@ -141,7 +141,7 @@ steps:
         fi
         echo "$HELM_HISTORY_OUTPUT" | grep -v '^WARNING:' > /tmp/helm_history.yaml
         echo "------------------------------------------------------"
-        echo "Helm History:"
+        echo "📋 Helm History:"
         echo "------------------------------------------------------"
         cat /tmp/helm_history.yaml
         echo "------------------------------------------------------"
@@ -149,11 +149,11 @@ steps:
         # Validate that previous_chart_name can only be microservices-v6 or empty
         previous_chart_name=$(cat /tmp/previous_chart_name)
         if [ -n "$previous_chart_name" ] && [ "$previous_chart_name" != "microservices-v6" ]; then
-          echo "Error: previous_chart_name must be 'microservices-v6' or empty"
+          echo "❌ Error: previous_chart_name must be 'microservices-v6' or empty"
           exit 1
         fi
         echo "------------------------------------------------------"
-        echo "Previous chart name: $previous_chart_name"
+        echo "📝 Previous chart name: $previous_chart_name"
         echo "------------------------------------------------------"
 
   - run:
@@ -173,7 +173,7 @@ steps:
           --dry-run=server \
           << parameters.chart >> > /tmp/rendered.yaml
         echo "------------------------------------------------------"
-        echo "Rendered YAML file content:"
+        echo "📄 Rendered YAML file content:"
         echo "------------------------------------------------------"
         cat /tmp/rendered.yaml
         echo "------------------------------------------------------"
@@ -188,8 +188,8 @@ steps:
               echo "$MIGRATION_PHASE" > /tmp/migration-phase-label
               ;;
             *)
-              echo "Error: MIGRATION_PHASE must be one of: initial, traffic, completed"
-              echo "Current MIGRATION_PHASE value: $MIGRATION_PHASE"
+              echo "❌ Error: MIGRATION_PHASE must be one of: initial, traffic, completed"
+              echo "🔍 Current MIGRATION_PHASE value: $MIGRATION_PHASE"
               exit 1
               ;;
           esac
@@ -197,7 +197,7 @@ steps:
           echo "completed" > /tmp/migration-phase-label
         fi
         echo "------------------------------------------------------"
-        echo "Migration phase label value: $(cat /tmp/migration-phase-label)"
+        echo "🏷️  Migration phase label value: $(cat /tmp/migration-phase-label)"
         echo "------------------------------------------------------"
 
   - run:
@@ -211,7 +211,7 @@ steps:
       name: Generate ArgoCD Application values
       command: |
         echo "------------------------------------------------------"
-        echo "Rendered Helm Args:"
+        echo "⚙️  Rendered Helm Args:"
         echo "------------------------------------------------------"
         cat /tmp/helm-args.yaml
         echo "------------------------------------------------------"
