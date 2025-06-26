@@ -3,7 +3,11 @@
 import re
 import os
 
-helm_parameters = os.environ.get("HELM_PARAMETERS", "")
+helm_parameters_input_file = os.environ.get("HELM_PARAMETERS_INPUT_FILE")
+helm_parameters_output_file = os.environ.get("HELM_PARAMETERS_OUTPUT_FILE")
+
+with open(helm_parameters_input_file, 'r') as f:
+    helm_parameters = f.read()
 
 pattern = r'(--set[^\s]*)\s+([^\s=]+|[^\s=]+\.\"[^\"]+\")=((?:"(?:[^"\\]|\\.)*")|(?:[^\s\\]+))'
 matches = re.findall(pattern, helm_parameters)
@@ -20,6 +24,6 @@ for opt, key, value in matches:
         value = f'"{value}"'
     result.append({'name': key, 'value': value})
 
-with open('/tmp/helm-args.yaml', 'w') as f:
+with open(helm_parameters_output_file, 'w') as f:
     for item in result:
         f.write(f"- name: {item['name']}\n  value: {item['value']}\n")
