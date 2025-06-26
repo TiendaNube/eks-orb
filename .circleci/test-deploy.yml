@@ -40,6 +40,7 @@ workflows:
           args: |
             --set labels.DD_VERSION=d816bd2 \
             --set-string labels."tags\.datadoghq\.com/version"=d816bd6 \
+            --set env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1:0:7} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
