@@ -9,7 +9,9 @@ helm_parameters_output_file = os.environ.get("HELM_PARAMETERS_OUTPUT_FILE")
 with open(helm_parameters_input_file, 'r') as f:
     helm_parameters = f.read()
 
-pattern = r'(--set[^\s]*)\s+([^\s=]+|[^\s=]+\.\"[^\"]+\")=((?:"(?:[^"\\]|\\.)*")|(?:[^\s\\]+))'
+# Improved regex to handle values with spaces (quoted or unquoted)
+# This pattern captures everything after = until the next --set or end of string
+pattern = r'(--set[^\s]*)\s+([^\s=]+(?:\.[^\s=]+)*)=([^-]*?)(?=\s+--set|\s*$)'
 matches = re.findall(pattern, helm_parameters)
 
 allowed_opts = {'--set', '--set-string'}
