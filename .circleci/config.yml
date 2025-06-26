@@ -1,74 +1,26 @@
 version: 2.1
-
+setup: true
 orbs:
-  orb-tools: circleci/orb-tools@9.0.0
-  eks: tiendanube/eks@<<pipeline.parameters.dev-orb-version>>
+  orb-tools: circleci/orb-tools@12.3.1
 
-parameters:
-  run-integration-tests:
-    type: boolean
-    default: false
-  dev-orb-version:
-    type: string
-    default: "dev:alpha"
-
-jobs:
-  integration-tests-eks-orb:
-    executor: eks/default
-    steps:
-      - checkout
-      - eks/update-kubeconfig-with-authenticator:
-          aws-region: us-west-2
-          cluster-name: staging
-      - eks/helm-client:
-          namespace: core
-          command: ls
-      - eks/helmfile-client:
-          cluster-name: staging
-          command: --version
-      - eks/kubectl:
-          namespace: core
-          command: get
-          args: pods
-      - run:
-          name: Testing All commands
-          command: |
-              aws-iam-authenticator version
-              aws --version
-              kubectl version
-              helm version
-              helmfile --version
-              terraform --version
+filters: &filters
+  tags:
+    only: /.*/
 
 workflows:
-  btd:
-
-    unless: << pipeline.parameters.run-integration-tests >>
-
+  lint-pack:
     jobs:
       - orb-tools/lint:
-          name: lint
+          filters: *filters
       - orb-tools/pack:
-          name: pack
-          requires:
-            - lint
-      - orb-tools/publish-dev:
-          name: publish-dev
-          orb-name: tiendanube/eks
-          alpha-version-ref: "dev:alpha"
-          publish-token-variable: "CIRCLE_TOKEN"
-          publish-alpha-version: true
-          context: orbs
-          requires:
-            - pack
-      - orb-tools/trigger-integration-tests-workflow:
-          name: trigger-integration-dev
-          requires:
-            - publish-dev
-          context: orbs
-  integration-tests_prod-release:
-    when: << pipeline.parameters.run-integration-tests >>
-    jobs:
-
-      - integration-tests-eks-orb:
-          context: microservices
+          org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
+          filters: *filters
+      - orb-tools/review:
+          filters: *filters
+          exclude: "RC006 RC007 RC008 RC009 RC010"
+      - orb-tools/continue:
+          pipeline_number: << pipeline.number >>
+          vcs_type: << pipeline.project.type >>
+          orb_name: eks
+          requires: [orb-tools/lint, orb-tools/pack, orb-tools/review]
+          filters: *filters

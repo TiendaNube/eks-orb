@@ -1,0 +1,24 @@
+image:
+  repository: 201009178507.dkr.ecr.us-east-1.amazonaws.com/al-co-epc-k8s-spring-boot-demo
+  tag: 9c85b6b
+  pullPolicy: IfNotPresent
+
+nameOverride: "rollouts-circleci-integration-test"
+fullnameOverride: "rollouts-circleci-integration-test"
+
+ingress:
+  enabled: true
+  deRegistrationDelay: 10
+  annotations:
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:201009178507:certificate/7b9bdb08-573f-4f31-a780-9cfb634fc672
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/security-groups: sgAlb
+    alb.ingress.kubernetes.io/subnets: "subnet-00540181b45485816, subnet-070147af491a2b8ad, subnet-017e973260d13b65f"
+    kubernetes.io/ingress.class: alb
+  paths: ["/*"]
+  hosts: ["example-rollout.ms.tiendanube.com"]
+  pathType: ImplementationSpecific
+  tls: []

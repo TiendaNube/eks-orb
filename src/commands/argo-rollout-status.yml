@@ -1,0 +1,57 @@
+description: Allows use the argo client to check the status of a rollout
+
+parameters:
+  release-name:
+    description: The name of the release to check the status
+    type: string
+  namespace:
+    description: The namespace to check the status of the release
+    type: string
+  check-interval:
+    description: Number of seconds to wait between status checks
+    type: integer
+    default: 10
+  timeout:
+    description: Maximum number of seconds to run status checks before quitting
+    type: string
+    default: '1m'
+
+steps:
+  - run:
+      name: Check Argo rollout status
+      command: |
+          set +e
+          timeout << parameters.timeout >> bash -o pipefail -c '
+            i=1
+            while true; do
+              echo "========================================================"
+              echo "Checking release status (attempt $i)..."
+              output=$(kubectl argo rollouts get rollout << parameters.release-name >> \
+                --namespace << parameters.namespace >>)
+              echo "$output"
+              status=$(echo "$output" | grep "^Status:" | awk '"'"'{print $3}'"'"')
+              case "$status" in
+                Healthy|Completed)
+                  echo "Rollout is $status."
+                  exit 0
+                  ;;
+                Degraded|Error|Aborted)
+                  echo "Release status is $status. Exiting with failure."
+                  exit 1
+                  ;;
+                Progressing|Paused)
+                  echo "Release status is $status. Waiting..."
+                  ;;
+                *)
+                  echo "Unknown status: $status. Waiting..."
+                  ;;
+              esac
+              i=$((i+1))
+              sleep << parameters.check-interval >>
+            done
+          '
+          TIMEOUT_RESULT=$?
+          if [ $TIMEOUT_RESULT -eq 124 ]; then
+            echo "Timeout reached while checking release status. Exiting with failure."
+            exit 0
+          fi

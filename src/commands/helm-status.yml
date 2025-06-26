@@ -1,0 +1,66 @@
+description: Allows use the helm client to check the status of a release
+
+parameters:
+  release-name:
+    description: The name of the release to check the status
+    type: string
+  namespace:
+    description: The namespace to check the status of the release
+    type: string
+  check-interval:
+    description: Number of seconds to wait between status checks
+    type: integer
+    default: 10
+  timeout:
+    description: Maximum number of seconds to run status checks before quitting
+    type: string
+    default: '1m'
+  show-description:
+    description: Show the description of the release.
+    type: boolean
+    default: true
+  show-resources:
+    description: Show the resources of the release.
+    type: boolean
+    default: true
+
+steps:
+  - run:
+      name: Check release status
+      command: |
+          set +e
+          timeout << parameters.timeout >> bash -o pipefail -c '
+            i=1
+            while true; do
+              echo "========================================================"
+              echo "Checking release status (attempt $i)..."
+              output=$(helmv3 status << parameters.release-name >> --namespace << parameters.namespace >> \
+                <<# parameters.show-description >>--show-desc<</parameters.show-description>> \
+                <<# parameters.show-resources >>--show-resources<</parameters.show-resources>>)
+              echo "$output"
+              status=$(echo "$output" | grep "^STATUS:" | awk '"'"'{print $2}'"'"')
+              case "$status" in
+                deployed)
+                  echo "Release is deployed."
+                  exit 0
+                  ;;
+                failed|superseded|uninstalled)
+                  echo "Release status is $status. Exiting with failure."
+                  exit 1
+                  ;;
+                pending-install|pending-upgrade|pending-rollback)
+                  echo "Release status is $status. Waiting..."
+                  ;;
+                *)
+                  echo "Unknown status: $status. Waiting..."
+                  ;;
+              esac
+              i=$((i+1))
+              sleep << parameters.check-interval >>
+            done
+          '
+          TIMEOUT_RESULT=$?
+          if [ $TIMEOUT_RESULT -eq 124 ]; then
+            echo "Timeout reached while checking release status. Exiting with failure."
+            exit 0
+          fi

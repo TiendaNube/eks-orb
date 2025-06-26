@@ -1,0 +1,3 @@
+description: CircleCI convenience image for AWS EKS
+docker:
+  - image: tiendanube/circleci-eks:v2.2.0
