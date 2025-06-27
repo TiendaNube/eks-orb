@@ -36,6 +36,7 @@ workflows:
           release-name: rollouts-circleci-integration-test
           s3-chart-repo: tiendanube-charts-preview
           chart: tiendanube-charts-preview/microservices-v8
+          project: productivity
           values-file: .circleci/resources/values-test-rollout.yml
           args: |
             --set labels.DD_VERSION=d816bd2 \
