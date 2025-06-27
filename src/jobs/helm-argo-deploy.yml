@@ -211,17 +211,14 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Export parameter ARGS to file
+      name: Export Helm args
       command: |
-        echo -e "<<parameters.args>>" > /tmp/helm-args-input.yaml
+        HELM_PARAMETERS='<<parameters.args>>'
+        EXPANDED_HELM_PARAMETERS=$(echo "$HELM_PARAMETERS" | envsubst)
+        echo "$EXPANDED_HELM_PARAMETERS" > /tmp/helm-args-input.yaml
 
   - run:
-      name: DEBUG ARGS INPUT FILE
-      command: |
-        cat /tmp/helm-args-input.yaml
-
-  - run:
-      name: Parse Helm Parameters
+      name: Parse Helm args
       shell: /usr/bin/env python3
       environment:
         HELM_PARAMETERS_INPUT_FILE: /tmp/helm-args-input.yaml
