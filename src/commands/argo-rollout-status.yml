@@ -54,4 +54,6 @@ steps:
           if [[ $TIMEOUT_RESULT -eq 124 ]]; then
             echo "⏰ Timeout reached while checking release status."
             exit 0
+          else
+            exit $TIMEOUT_RESULT
           fi
