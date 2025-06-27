@@ -8,7 +8,10 @@ helm_parameters_output_file = os.environ.get("HELM_PARAMETERS_OUTPUT_FILE")
 
 allowed_opts = {"set", "set-string"}
 
-pattern = re.compile(r'--([a-zA-Z\-]+)\s+([^\s=]+)=(\".*?\"|\'.*?\'|[^\s]+)')
+pattern = re.compile(
+    r'--(?P<opt>set(?:-string)?)\s+(?P<key>[^\s=]+)=(?P<value>(?:(?!--set(?:-string)?\s).)+)',
+    re.DOTALL
+)
 
 def infer_type(value: str):
     if value.startswith('"') and value.endswith('"'):

@@ -1,0 +1,16 @@
+image:
+  repository: 201009178507.dkr.ecr.us-west-2.amazonaws.com/al-co-epc-k8s-spring-boot-demo
+  tag: 9c85b6b
+  pullPolicy: IfNotPresent
+
+nameOverride: "rollouts-circleci-integration-test"
+fullnameOverride: "rollouts-circleci-integration-test"
+
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx-internal
+  paths: ["/*"]
+  hosts:
+    - al-co-epc-k8s-spring-boot-demo.nubestaging.com
+  tls: [ ]

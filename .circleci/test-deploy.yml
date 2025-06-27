@@ -27,17 +27,21 @@ workflows:
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
-                region: ${AWS_REGION}
+                region: ${AWS_REGION_STAGING}
+            - run:
+                name: 'Fetch secrets from AWS Secrets Manager and update helm envs'
+                command: |
+                  echo '{"DB_HOST_PRIMARY": "mydatabase.example.com"}' >> "$BASH_ENV"
           checkout: true
           cluster-name: staging
-          image-tag: 9c85b6b
-          region: ${AWS_REGION}
+          image-tag: stg-60cbb90
+          region: ${AWS_REGION_STAGING}
           namespace: argocd-rollouts-integration-test
           release-name: rollouts-circleci-integration-test
           s3-chart-repo: tiendanube-charts-preview
           chart: tiendanube-charts-preview/microservices-v8
           project: productivity
-          values-file: .circleci/resources/values-test-rollout.yml
+          values-file: .circleci/resources/values-test-rollout-staging.yml
           args: |
             --set labels.DD_VERSION=d816bd2 \
             --set-string labels."tags\.datadoghq\.com/version"=d816bd6 \
@@ -48,14 +52,6 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
             --set env.DB_HOST_PRIMARY=$(echo $secret_string | jq -r ."DB_HOST_PRIMARY") \
-            --set env.DB_DATABASE_PRIMARY=$(echo $secret_string | jq -r ."DB_DATABASE_PRIMARY") \
-            --set env.DB_USERNAME_PRIMARY=$(echo $secret_string | jq -r ."DB_USERNAME_PRIMARY") \
-            --set env.DB_PASSWORD_PRIMARY=$(echo $secret_string | jq -r ."DB_PASSWORD_PRIMARY") \
-            --set env.DB_HOST_SECONDARY=$(echo $secret_string | jq -r ."DB_HOST_SECONDARY") \
-            --set env.DB_DATABASE_SECONDARY=$(echo $secret_string | jq -r ."DB_DATABASE_SECONDARY") \
-            --set env.DB_USERNAME_SECONDARY=$(echo $secret_string | jq -r ."DB_USERNAME_SECONDARY") \
-            --set env.DB_PASSWORD_SECONDARY=$(echo $secret_string | jq -r ."DB_PASSWORD_SECONDARY") \
-            --set env.MONOLITH_ACCESS_TOKEN=$(echo $secret_string | jq -r ."MONOLITH_ACCESS_TOKEN") \
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
