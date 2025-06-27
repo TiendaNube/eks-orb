@@ -29,7 +29,7 @@ workflows:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
                 region: ${AWS_REGION}
           checkout: true
-          cluster-name: production
+          cluster-name: staging
           image-tag: 9c85b6b
           region: ${AWS_REGION}
           namespace: argocd-rollouts-integration-test
@@ -40,7 +40,21 @@ workflows:
           args: |
             --set labels.DD_VERSION=d816bd2 \
             --set-string labels."tags\.datadoghq\.com/version"=d816bd6 \
-            --set-string env.DD_TAGS="git\.commit\.sha:${CIRCLE_SHA1:0:7} git\.repository_url:github\.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
+            --set-string env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
+            --set-string env.APP_ENDPOINT="https://services-catalog.${CIRCLE_BRANCH}.nubestaging.com" \
+            --set-string labels.branch=${CIRCLE_BRANCH} \
+            --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
+            --set-string labels.protected_branch="false" \
+            --set-string labels.version=${CIRCLE_BRANCH} \
+            --set env.DB_HOST_PRIMARY=$(echo $secret_string | jq -r ."DB_HOST_PRIMARY") \
+            --set env.DB_DATABASE_PRIMARY=$(echo $secret_string | jq -r ."DB_DATABASE_PRIMARY") \
+            --set env.DB_USERNAME_PRIMARY=$(echo $secret_string | jq -r ."DB_USERNAME_PRIMARY") \
+            --set env.DB_PASSWORD_PRIMARY=$(echo $secret_string | jq -r ."DB_PASSWORD_PRIMARY") \
+            --set env.DB_HOST_SECONDARY=$(echo $secret_string | jq -r ."DB_HOST_SECONDARY") \
+            --set env.DB_DATABASE_SECONDARY=$(echo $secret_string | jq -r ."DB_DATABASE_SECONDARY") \
+            --set env.DB_USERNAME_SECONDARY=$(echo $secret_string | jq -r ."DB_USERNAME_SECONDARY") \
+            --set env.DB_PASSWORD_SECONDARY=$(echo $secret_string | jq -r ."DB_PASSWORD_SECONDARY") \
+            --set env.MONOLITH_ACCESS_TOKEN=$(echo $secret_string | jq -r ."MONOLITH_ACCESS_TOKEN") \
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
