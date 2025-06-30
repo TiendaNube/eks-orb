@@ -27,19 +27,25 @@ workflows:
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
-                region: ${AWS_REGION}
+                region: ${AWS_REGION_STAGING}
           checkout: true
-          cluster-name: production
-          image-tag: 9c85b6b
-          region: ${AWS_REGION}
+          cluster-name: staging
+          image-tag: stg-60cbb90
+          region: ${AWS_REGION_STAGING}
           namespace: argocd-rollouts-integration-test
           release-name: rollouts-circleci-integration-test
-          s3-chart-repo: tiendanube-charts-preview
-          chart: tiendanube-charts-preview/microservices-v8
-          values-file: .circleci/resources/values-test-rollout.yml
+          s3-chart-repo: tiendanube-charts
+          chart: tiendanube-charts/microservices-v8
+          project: productivity
+          values-file: .circleci/resources/values-test-rollout-staging.yml
           args: |
             --set labels.DD_VERSION=d816bd2 \
             --set-string labels."tags\.datadoghq\.com/version"=d816bd6 \
+            --set-string env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
+            --set-string env.APP_ENDPOINT="https://services-catalog.${CIRCLE_BRANCH}.nubestaging.com" \
+            --set-string labels.branch=${CIRCLE_BRANCH} \
+            --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
+            --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.

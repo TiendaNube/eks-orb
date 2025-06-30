@@ -25,25 +25,25 @@ steps:
             i=1
             while true; do
               echo "========================================================"
-              echo "Checking release status (attempt $i)..."
+              echo "🔍 Checking release status (attempt $i)..."
               output=$(kubectl argo rollouts get rollout << parameters.release-name >> \
                 --namespace << parameters.namespace >>)
               echo "$output"
               status=$(echo "$output" | grep "^Status:" | awk '"'"'{print $3}'"'"')
               case "$status" in
                 Healthy|Completed)
-                  echo "Rollout is $status."
+                  echo "✅ Rollout is $status."
                   exit 0
                   ;;
                 Degraded|Error|Aborted)
-                  echo "Release status is $status. Exiting with failure."
+                  echo "❌ Release status is $status. Exiting with failure."
                   exit 1
                   ;;
                 Progressing|Paused)
-                  echo "Release status is $status. Waiting..."
+                  echo "⏳ Release status is $status. Waiting..."
                   ;;
                 *)
-                  echo "Unknown status: $status. Waiting..."
+                  echo "❓ Unknown status: $status. Waiting..."
                   ;;
               esac
               i=$((i+1))
@@ -51,7 +51,9 @@ steps:
             done
           '
           TIMEOUT_RESULT=$?
-          if [ $TIMEOUT_RESULT -eq 124 ]; then
-            echo "Timeout reached while checking release status. Exiting with failure."
+          if [[ $TIMEOUT_RESULT -eq 124 ]]; then
+            echo "⏰ Timeout reached while checking release status."
             exit 0
+          else
+            exit $TIMEOUT_RESULT
           fi

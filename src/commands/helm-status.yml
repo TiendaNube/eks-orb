@@ -33,7 +33,7 @@ steps:
             i=1
             while true; do
               echo "========================================================"
-              echo "Checking release status (attempt $i)..."
+              echo "🔍 Checking release status (attempt $i)..."
               output=$(helmv3 status << parameters.release-name >> --namespace << parameters.namespace >> \
                 <<# parameters.show-description >>--show-desc<</parameters.show-description>> \
                 <<# parameters.show-resources >>--show-resources<</parameters.show-resources>>)
@@ -41,18 +41,18 @@ steps:
               status=$(echo "$output" | grep "^STATUS:" | awk '"'"'{print $2}'"'"')
               case "$status" in
                 deployed)
-                  echo "Release is deployed."
+                  echo "✅ Release is deployed."
                   exit 0
                   ;;
                 failed|superseded|uninstalled)
-                  echo "Release status is $status. Exiting with failure."
+                  echo "❌ Release status is $status. Exiting with failure."
                   exit 1
                   ;;
                 pending-install|pending-upgrade|pending-rollback)
-                  echo "Release status is $status. Waiting..."
+                  echo "⏳ Release status is $status. Waiting..."
                   ;;
                 *)
-                  echo "Unknown status: $status. Waiting..."
+                  echo "❓ Unknown status: $status. Waiting..."
                   ;;
               esac
               i=$((i+1))
@@ -60,7 +60,9 @@ steps:
             done
           '
           TIMEOUT_RESULT=$?
-          if [ $TIMEOUT_RESULT -eq 124 ]; then
-            echo "Timeout reached while checking release status. Exiting with failure."
+          if [[ $TIMEOUT_RESULT -eq 124 ]]; then
+            echo "⏰ Timeout reached while checking release status."
             exit 0
+          else
+            exit $TIMEOUT_RESULT
           fi
