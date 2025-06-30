@@ -34,8 +34,8 @@ workflows:
           region: ${AWS_REGION_STAGING}
           namespace: argocd-rollouts-integration-test
           release-name: rollouts-circleci-integration-test
-          s3-chart-repo: tiendanube-charts-preview
-          chart: tiendanube-charts-preview/microservices-v8
+          s3-chart-repo: tiendanube-charts
+          chart: tiendanube-charts/microservices-v8
           project: productivity
           values-file: .circleci/resources/values-test-rollout-staging.yml
           args: |
