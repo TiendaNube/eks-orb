@@ -45,7 +45,6 @@ workflows:
             --set-string env.APP_ENDPOINT="https://services-catalog.${CIRCLE_BRANCH}.nubestaging.com" \
             --set-string labels.branch=${CIRCLE_BRANCH} \
             --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
-            --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [test-helm-argo-deploy-approval]
           filters: *filters
