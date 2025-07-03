@@ -211,19 +211,71 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Export Helm args
+      name: Export ArgoCD Application Parameters
       command: |
-        HELM_PARAMETERS='<<parameters.args>>'
-        EXPANDED_HELM_PARAMETERS=$(echo "$HELM_PARAMETERS" | envsubst)
-        echo "$EXPANDED_HELM_PARAMETERS" > /tmp/helm-args-input.yaml
+        # Create directory structure for the chart
+        mkdir -p /tmp/parameter-chart/templates
+        
+        # Create Chart.yaml
+        cat << EOF > /tmp/parameter-chart/Chart.yaml
+        apiVersion: v2
+        name: parameter-chart
+        description: Chart to visualize parameters
+        type: application
+        version: 0.1.0
+        appVersion: "1.0.0"
+        EOF
+        
+        # Create empty values.yaml
+        echo "# Default values" > /tmp/parameter-chart/values.yaml
 
-  - run:
-      name: Parse Helm args
-      shell: /usr/bin/env python3
-      environment:
-        HELM_PARAMETERS_INPUT_FILE: /tmp/helm-args-input.yaml
-        HELM_PARAMETERS_OUTPUT_FILE: /tmp/helm-args.yaml
-      command: <<include(scripts/parse_helm_parameters.py)>>
+        # Create template that will just output parameters
+        cat << 'EOF' > /tmp/parameter-chart/templates/parameters.yaml
+        parameters:
+        {{- range $section, $content := .Values }}
+        {{- if kindIs "map" $content }}
+        {{- range $key, $value := $content }}
+        {{- $escapedKey := $key | replace "." "\\." -}}
+        {{- if kindIs "map" $value }}
+        {{- range $subKey, $subValue := $value }}
+        {{- $escapedSubKey := $subKey | replace "." "\\." -}}
+          - name: {{ $section }}.{{ $escapedKey }}.{{ $escapedSubKey }}
+            value: {{ $subValue | quote }}
+        {{- end }}
+        {{- else if kindIs "slice" $value }}
+        {{- range $index, $item := $value }}
+          - name: {{ $section }}.{{ $escapedKey }}[{{ $index }}]
+            value: {{ $item | quote }}
+        {{- end }}
+        {{- else }}
+          - name: {{ $section }}.{{ $escapedKey }}
+            value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- else }}
+          - name: {{ $section }}
+            value: {{ $content | quote }}
+        {{- end }}
+        {{- end }}
+        EOF
+
+        echo "Parameter template created at /tmp/parameter-chart"
+        
+        # Generate template output with all values
+        helmv3 template \
+          parameter-chart \
+          --set-string image.tag="<< parameters.image-tag >>" \
+          --set-string previousChartName="$(cat /tmp/previous_chart_name)" \
+          --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
+          --set mesh=<< parameters.mesh >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          /tmp/parameter-chart > /tmp/parameters-output.yaml
+        
+        echo "------------------------------------------------------"
+        echo "📊 Parameters:"
+        echo "------------------------------------------------------"
+        cat /tmp/parameters-output.yaml
+        echo "------------------------------------------------------"
 
   - run:
       name: Generate ArgoCD Application values
@@ -235,8 +287,8 @@ steps:
         echo "------------------------------------------------------"
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
-        HELM_ARGS=$(cat /tmp/helm-args.yaml)
-        HELM_ARGS_INDENTED=$(echo "$HELM_ARGS" | awk 'NR==1{print $0; next} {print "      "$0}')
+        PARAMETERS=$(cat /tmp/parameters-output.yaml)
+        PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
           namespace: argocd
@@ -251,14 +303,7 @@ steps:
           targetRevision: HEAD
           helm:
             releaseName: << parameters.release-name >>
-            parameters:
-              - name: image.tag
-                value: "<< parameters.image-tag >>"
-              - name: canaryMigrationPhaseOverride
-                value: "$(cat /tmp/migration-phase-label)"
-              - name: previousChartName
-                value: "$(cat /tmp/previous_chart_name)"
-              $HELM_ARGS_INDENTED
+            $PARAMETERS_INDENTED
             file: |-
               $VALUES_INDENTED
 
