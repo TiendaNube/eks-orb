@@ -215,9 +215,8 @@ steps:
       command: |
         # Create directory structure for the chart
         mkdir -p /tmp/parameter-chart/templates
-        
         # Create Chart.yaml
-        cat << EOF > /tmp/parameter-chart/Chart.yaml
+        cat \<< EOF > /tmp/parameter-chart/Chart.yaml
         apiVersion: v2
         name: parameter-chart
         description: Chart to visualize parameters
@@ -225,12 +224,10 @@ steps:
         version: 0.1.0
         appVersion: "1.0.0"
         EOF
-        
         # Create empty values.yaml
         echo "# Default values" > /tmp/parameter-chart/values.yaml
-
         # Create template that will just output parameters
-        cat << 'EOF' > /tmp/parameter-chart/templates/parameters.yaml
+        cat \<< 'EOF' > /tmp/parameter-chart/templates/parameters.yaml
         parameters:
         {{- range $section, $content := .Values }}
         {{- if kindIs "map" $content }}
@@ -258,9 +255,7 @@ steps:
         {{- end }}
         {{- end }}
         EOF
-
         echo "Parameter template created at /tmp/parameter-chart"
-        
         # Generate template output with all values
         helmv3 template \
           parameter-chart \
@@ -270,7 +265,6 @@ steps:
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           /tmp/parameter-chart > /tmp/parameters-output.yaml
-        
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
         echo "------------------------------------------------------"
