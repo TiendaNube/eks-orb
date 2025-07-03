@@ -228,32 +228,31 @@ steps:
         echo "# Default values" > /tmp/parameter-chart/values.yaml
         # Create template that will just output parameters
         cat \<< 'EOF' > /tmp/parameter-chart/templates/parameters.yaml
+        {{- define "flatten" -}}
+        {{- $root := index . 0 -}}
+        {{- $prefix := index . 1 -}}
+        {{- range $k, $v := $root }}
+        {{- $name := "" -}}
+        {{- if eq $prefix "" -}}
+        {{- $name = $k -}}
+        {{- else -}}
+        {{- $name = printf "%s.%s" $prefix $k -}}
+        {{- end -}}
+        {{- if kindIs "map" $v }}
+        {{- include "flatten" (list $v $name) }}
+        {{- else if kindIs "slice" $v }}
+        {{- range $i, $item := $v }}
+        - name: {{ $name }}[{{ $i }}]
+          value: {{ $item | quote }}
+        {{- end }}
+        {{- else }}
+        - name: {{ $name }}
+          value: {{ $v | quote }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
         parameters:
-        {{- range $section, $content := .Values }}
-        {{- if kindIs "map" $content }}
-        {{- range $key, $value := $content }}
-        {{- $escapedKey := $key | replace "." "\\." -}}
-        {{- if kindIs "map" $value }}
-        {{- range $subKey, $subValue := $value }}
-        {{- $escapedSubKey := $subKey | replace "." "\\." -}}
-          - name: {{ $section }}.{{ $escapedKey }}.{{ $escapedSubKey }}
-            value: {{ $subValue | quote }}
-        {{- end }}
-        {{- else if kindIs "slice" $value }}
-        {{- range $index, $item := $value }}
-          - name: {{ $section }}.{{ $escapedKey }}[{{ $index }}]
-            value: {{ $item | quote }}
-        {{- end }}
-        {{- else }}
-          - name: {{ $section }}.{{ $escapedKey }}
-            value: {{ $value | quote }}
-        {{- end }}
-        {{- end }}
-        {{- else }}
-          - name: {{ $section }}
-            value: {{ $content | quote }}
-        {{- end }}
-        {{- end }}
+        {{- include "flatten" (list .Values "") }}
         EOF
         echo "Parameter template created at /tmp/parameter-chart"
         # Generate template output with all values
@@ -264,21 +263,18 @@ steps:
           --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          /tmp/parameter-chart > /tmp/parameters-output.yaml
+          /tmp/parameter-chart > /tmp/raw-parameters-output.yaml
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
         echo "------------------------------------------------------"
+        # Extract only the parameters section onwards, skipping warnings
+        sed -n '/^parameters:/,$p' /tmp/raw-parameters-output.yaml > /tmp/parameters-output.yaml
         cat /tmp/parameters-output.yaml
         echo "------------------------------------------------------"
 
   - run:
       name: Generate ArgoCD Application values
       command: |
-        echo "------------------------------------------------------"
-        echo "⚙️  Rendered Helm Args:"
-        echo "------------------------------------------------------"
-        cat /tmp/helm-args.yaml
-        echo "------------------------------------------------------"
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
         PARAMETERS=$(cat /tmp/parameters-output.yaml)
