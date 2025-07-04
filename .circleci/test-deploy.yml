@@ -106,8 +106,6 @@ workflows:
           chart: tiendanube-charts/microservices-v6
           values-file: .circleci/resources/values-test-rollout-staging.yml
           mesh: true
-          helm-version: helmv3
-          helmv3: true
           args: |
             --set-string env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
             --set-string env.APP_ENDPOINT="https://services-catalog.${CIRCLE_BRANCH}.nubestaging.com" \
