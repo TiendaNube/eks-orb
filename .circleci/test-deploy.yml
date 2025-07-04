@@ -12,8 +12,6 @@ filter-staging: &filter-staging
 filter-production: &filter-production
   branches:
     only: /master/
-    ignore:
-      - /.*/
 
 workflows:
   production-argo-test-and-deploy:
