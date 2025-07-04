@@ -3,8 +3,12 @@ image:
   tag: 9c85b6b
   pullPolicy: IfNotPresent
 
-nameOverride: "rollouts-circleci-integration-test"
-fullnameOverride: "rollouts-circleci-integration-test"
+nameOverride: "rollouts-it"
+fullnameOverride: "rollouts-it"
+
+labels:
+  app: rollouts-it
+  service: rollouts-it
 
 ingress:
   enabled: true
