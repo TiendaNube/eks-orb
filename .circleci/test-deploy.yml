@@ -35,7 +35,7 @@ workflows:
           image-tag: 9c85b6b
           region: ${AWS_REGION}
           namespace: argocd-rollouts-it
-          release-name: rollouts-it
+          release-name: ${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH}
           s3-chart-repo: tiendanube-charts
           chart: tiendanube-charts/microservices-v8
           values-file: .circleci/resources/values-test-rollout-production.yml
@@ -45,6 +45,8 @@ workflows:
             --set env.SPRING_PROFILES_ACTIVE=feature \
             --set-string labels."tags\.datadoghq\.com/env"=feature \
             --set env.BRANCH=${CIRCLE_BRANCH} \
+            --set nameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
+            --set fullnameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
             --set ingress.annotations."alb\.ingress\.kubernetes\.io/certificate-arn"=${AWS_ACM_CERTIFICATES} \
             --set ingress.hosts[0]=${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BRANCH}.nubestaging.com \
@@ -98,7 +100,7 @@ workflows:
           image-tag: stg-60cbb90
           region: ${AWS_REGION_STAGING}
           namespace: argocd-rollouts-it
-          release-name: rollouts-it
+          release-name: ${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH}
           s3-chart-repo: tiendanube-charts
           chart: tiendanube-charts/microservices-v8
           values-file: .circleci/resources/values-test-rollout-staging.yml
@@ -109,6 +111,8 @@ workflows:
             --set env.SPRING_PROFILES_ACTIVE=feature \
             --set-string labels."tags\.datadoghq\.com/env"=feature \
             --set env.BRANCH=${CIRCLE_BRANCH} \
+            --set nameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
+            --set fullnameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
             --set ingress.annotations."alb\.ingress\.kubernetes\.io/certificate-arn"=${AWS_ACM_CERTIFICATES} \
             --set ingress.hosts[0]=${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BRANCH}.nubestaging.com \
@@ -150,7 +154,7 @@ workflows:
           image-tag: stg-60cbb90
           region: ${AWS_REGION_STAGING}
           namespace: argocd-rollouts-it
-          release-name: rollouts-it
+          release-name: ${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH}
           s3-chart-repo: tiendanube-charts
           chart: tiendanube-charts/microservices-v6
           values-file: .circleci/resources/values-test-rollout-staging.yml
@@ -163,6 +167,8 @@ workflows:
             --set env.SPRING_PROFILES_ACTIVE=feature \
             --set-string labels."tags\.datadoghq\.com/env"=feature \
             --set env.BRANCH=${CIRCLE_BRANCH} \
+            --set nameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
+            --set fullnameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
             --set ingress.annotations."alb\.ingress\.kubernetes\.io/certificate-arn"=${AWS_ACM_CERTIFICATES} \
             --set ingress.hosts[0]=${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BRANCH}.nubestaging.com \
@@ -204,7 +210,7 @@ workflows:
           image-tag: stg-60cbb90
           region: ${AWS_REGION_STAGING}
           namespace: argocd-rollouts-it
-          release-name: rollouts-it
+          release-name: ${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH}
           s3-chart-repo: tiendanube-charts
           chart: tiendanube-charts/microservices-v6
           values-file: .circleci/resources/values-test-rollout-staging.yml
@@ -215,6 +221,8 @@ workflows:
             --set env.SPRING_PROFILES_ACTIVE=feature \
             --set-string labels."tags\.datadoghq\.com/env"=feature \
             --set env.BRANCH=${CIRCLE_BRANCH} \
+            --set nameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
+            --set fullnameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
             --set ingress.annotations."alb\.ingress\.kubernetes\.io/certificate-arn"=${AWS_ACM_CERTIFICATES} \
             --set ingress.hosts[0]=${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BRANCH}.nubestaging.com \
