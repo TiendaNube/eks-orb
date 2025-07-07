@@ -32,7 +32,6 @@ workflows:
                 name: Simulate fetching secrets from AWS Secrets Manager and update helm envs
                 command: |
                   echo 'export secret_string="{\"DB_HOST_PRIMARY\":\"my-db.example.com\"}"' >> "$BASH_ENV"
-                  echo 'export DB_HOST_PRIMARY=$(echo "$secret_string" | jq -r ".DB_HOST_PRIMARY")' >> "$BASH_ENV"
           checkout: true
           cluster-name: staging
           image-tag: stg-60cbb90
@@ -51,7 +50,7 @@ workflows:
             --set-string labels.branch=${CIRCLE_BRANCH} \
             --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
             --set-string labels.version=${CIRCLE_BRANCH} \
-            --set env.DB_HOST_PRIMARY=${DB_HOST_PRIMARY} \
+            --set env.DB_HOST_PRIMARY=$(echo "$secret_string" | jq -r ".DB_HOST_PRIMARY") \
             --set env.SETTINGS_ENV=feature \
             --set env.SPRING_PROFILES_ACTIVE=feature \
             --set-string labels."tags\.datadoghq\.com/env"=feature \
