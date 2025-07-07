@@ -1,2 +1,0 @@
-parameters:
-{{- include "flatten" (list .Values "") | nindent 2 -}}
