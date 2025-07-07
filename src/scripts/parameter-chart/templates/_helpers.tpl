@@ -17,12 +17,7 @@
 {{- end }}
 {{- else }}
 - name: {{ $name }}
-{{- if or (kindIs "bool" $v) (kindIs "float64" $v) (kindIs "int" $v) }}
-  value: {{ $v }}
-{{- else }}
-  value: {{ $v | quote }}
-  forceString: true
-{{- end }}
+{{- include "formatValue" $item -}}
 {{- end }}
 {{- end }}
 {{- end }}
