@@ -225,7 +225,7 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Generate ArgoCD Application parameters from Helm chart
+      name: Get ArgoCD Application parameters from Helm chart
       command: |
         PARAMETERS_CHART_DIR=${ARGO_PARAMETERS_DIR}/parameter-chart
         # Create directory structure for the chart
@@ -297,7 +297,7 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Generate ArgoCD Application manifest
+      name: Create ArgoCD Application manifest
       command: |
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
