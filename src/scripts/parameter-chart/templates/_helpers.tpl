@@ -1,3 +1,13 @@
+{{- define "formatValue" -}}
+{{- $value := . -}}
+{{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
+value: {{ $value }}
+{{- else }}
+value: {{ $value | quote }}
+forceString: true
+{{- end }}
+{{- end -}}
+
 {{- define "flatten" -}}
 {{- $root := index . 0 -}}
 {{- $prefix := index . 1 -}}
@@ -13,11 +23,11 @@
 {{- else if kindIs "slice" $v }}
 {{- range $i, $item := $v }}
 - name: {{ $name }}[{{ $i }}]
-{{- include "formatValue" $item -}}
+{{- include "formatValue" $item | nindent 2 }}
 {{- end }}
 {{- else }}
 - name: {{ $name }}
-{{- include "formatValue" $item -}}
+{{- include "formatValue" $v | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end }}
