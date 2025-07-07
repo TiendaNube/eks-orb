@@ -103,6 +103,14 @@ steps:
         echo "export ARGO_PARAMETERS_FILE=$ARGO_PARAMETERS_DIR/parameters.yaml" >> $BASH_ENV
         echo "📋 Argo parameters directory: $ARGO_PARAMETERS_DIR"
         echo "------------------------------------------------------"
+        HELM_DETECTION_DIR=/tmp/helm-detection
+        mkdir -p "$HELM_DETECTION_DIR"
+        # Clean any previous files
+        rm -f "$HELM_DETECTION_DIR"/* 2>/dev/null || true
+        echo "export HELM_DETECTION_DIR=$HELM_DETECTION_DIR" >> $BASH_ENV
+        echo "export HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name" >> $BASH_ENV
+        echo "📋 Helm detection directory: $HELM_DETECTION_DIR"
+        echo "------------------------------------------------------"
 
   - when:
       condition: << parameters.checkout >>
@@ -140,38 +148,18 @@ steps:
               helmv3 repo update
 
   - run:
-      name: Extract previous chart name
+      name: Detect Helm version
+      environment:
+        HELM_RELEASE_NAME: << parameters.release-name >>
+        HELM_NAMESPACE: << parameters.namespace >>
+        HELM_DETECTION_DIR: ${HELM_DETECTION_DIR}
+      command: <<include(scripts/detect_helm_version.sh)>>
+
+  - run:
+      name: Validate previous Helm chart name
       command: |
-        set +e
-        # Define the yq expression for extracting the deployed chart name
-        # This expression filters the history to find the last deployed chart and removes the version suffix
-        # The version suffix is assumed to be in the format -X.Y.Z where X, Y, and Z are integers
-        # The sed command removes the version suffix from the chart name
-        YQ_EXPR='map(select(.status == "deployed")) | .[0].chart // ""'
-        # Run helm history and capture stderr and exit code
-        HELM_HISTORY_OUTPUT=$(helmv3 history \
-          << parameters.release-name >> \
-          --namespace << parameters.namespace >> -o yaml 2>&1)
-        HELM_EXIT_CODE=$?
-        # Check for 'release: not found' error or any non-zero exit code
-        if [ $HELM_EXIT_CODE -ne 0 ]; then
-          echo "$HELM_HISTORY_OUTPUT"
-          if echo "$HELM_HISTORY_OUTPUT" | grep -q 'release: not found'; then
-            echo "" > /tmp/previous_chart_name
-            exit 0
-          else
-            exit 1
-          fi
-        fi
-        echo "$HELM_HISTORY_OUTPUT" | grep -v '^WARNING:' > /tmp/helm_history.yaml
-        echo "------------------------------------------------------"
-        echo "📋 Helm History:"
-        echo "------------------------------------------------------"
-        cat /tmp/helm_history.yaml
-        echo "------------------------------------------------------"
-        yq eval "$YQ_EXPR" /tmp/helm_history.yaml | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//' > /tmp/previous_chart_name
         # Validate that previous_chart_name can only be microservices-v6 or empty
-        previous_chart_name=$(cat /tmp/previous_chart_name)
+        previous_chart_name=$(cat ${HELM_DETECTION_CHART_NAME_FILE})
         if [ -n "$previous_chart_name" ] && [ "$previous_chart_name" != "microservices-v6" ]; then
           echo "❌ Error: previous_chart_name must be 'microservices-v6' or empty"
           exit 1
@@ -191,7 +179,7 @@ steps:
           --values << parameters.values-file >> \
           --namespace << parameters.namespace >> \
           --set-string image.tag="<< parameters.image-tag >>" \
-          --set-string previousChartName="$(cat /tmp/previous_chart_name)" \
+          --set-string previousChartName="$(cat ${HELM_DETECTION_CHART_NAME_FILE})" \
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --dry-run=server \
@@ -285,7 +273,7 @@ steps:
           --set-string image.tag="<< parameters.image-tag >>" \
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --set-string previousChartName="$(cat /tmp/previous_chart_name)" \
+          --set-string previousChartName="$(cat ${HELM_DETECTION_CHART_NAME_FILE})" \
           --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
           "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
