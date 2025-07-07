@@ -150,8 +150,8 @@ steps:
         YQ_EXPR='map(select(.status == "deployed")) | .[0].chart // ""'
         # Run helm history and capture stderr and exit code
         HELM_HISTORY_OUTPUT=$(helmv3 history \
-          rollouts-circleci-integration-test \
-          --namespace argocd-rollouts-integration-test -o yaml 2>&1)
+          << parameters.release-name >> \
+          --namespace << parameters.namespace >> -o yaml 2>&1)
         HELM_EXIT_CODE=$?
         # Check for 'release: not found' error or any non-zero exit code
         if [ $HELM_EXIT_CODE -ne 0 ]; then

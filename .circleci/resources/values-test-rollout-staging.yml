@@ -1,10 +1,14 @@
 image:
   repository: 201009178507.dkr.ecr.us-west-2.amazonaws.com/al-co-epc-k8s-spring-boot-demo
-  tag: 9c85b6b
+  tag: stg-60cbb90
   pullPolicy: IfNotPresent
 
-nameOverride: "rollouts-circleci-integration-test"
-fullnameOverride: "rollouts-circleci-integration-test"
+nameOverride: "rollouts-it"
+fullnameOverride: "rollouts-it"
+
+labels:
+  app: rollouts-it
+  service: rollouts-it
 
 ingress:
   enabled: true
