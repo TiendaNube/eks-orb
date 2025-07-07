@@ -13,12 +13,7 @@
 {{- else if kindIs "slice" $v }}
 {{- range $i, $item := $v }}
 - name: {{ $name }}[{{ $i }}]
-{{- if or (kindIs "bool" $item) (kindIs "float64" $item) (kindIs "int" $item) }}
-  value: {{ $item }}
-{{- else }}
-  value: {{ $item | quote }}
-  forceString: true
-{{- end }}
+{{- include "formatValue" $item -}}
 {{- end }}
 {{- else }}
 - name: {{ $name }}
