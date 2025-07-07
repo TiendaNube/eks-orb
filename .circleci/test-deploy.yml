@@ -43,13 +43,6 @@ workflows:
           values-file: .circleci/resources/values-test-rollout-staging.yml
           mesh: false
           args: |
-            --set labels.DD_VERSION=d816bd2 \
-            --set-string labels."tags\.datadoghq\.com/version"=d816bd6 \
-            --set-string env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
-            --set-string env.APP_ENDPOINT="https://services-catalog.${CIRCLE_BRANCH}.nubestaging.com" \
-            --set-string labels.branch=${CIRCLE_BRANCH} \
-            --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
-            --set-string labels.version=${CIRCLE_BRANCH} \
             --set env.DB_HOST_PRIMARY=$(echo "$secret_string" | jq -r ".DB_HOST_PRIMARY") \
             --set env.SETTINGS_ENV=feature \
             --set env.SPRING_PROFILES_ACTIVE=feature \
