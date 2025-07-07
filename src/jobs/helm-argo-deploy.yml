@@ -90,6 +90,20 @@ parameters:
     default: tiendanube
 
 steps:
+  - run:
+      name: Setup Environment Variables
+      description: Define environment variables to share between steps
+      command: |
+        echo "------------------------------------------------------"
+        ARGO_PARAMETERS_DIR=/tmp/argo-parameters
+        mkdir -p "$ARGO_PARAMETERS_DIR"
+        # Clean any previous files
+        rm -f "$ARGO_PARAMETERS_DIR"/* 2>/dev/null || true
+        echo "export ARGO_PARAMETERS_DIR=$ARGO_PARAMETERS_DIR" >> $BASH_ENV
+        echo "export ARGO_PARAMETERS_FILE=$ARGO_PARAMETERS_DIR/parameters.yaml" >> $BASH_ENV
+        echo "📋 Argo parameters directory: $ARGO_PARAMETERS_DIR"
+        echo "------------------------------------------------------"
+
   - when:
       condition: << parameters.checkout >>
       steps:
@@ -211,32 +225,34 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Export Helm args
+      name: Generate ArgoCD Application parameters from Helm chart
       command: |
-        HELM_PARAMETERS='<<parameters.args>>'
-        EXPANDED_HELM_PARAMETERS=$(echo "$HELM_PARAMETERS" | envsubst)
-        echo "$EXPANDED_HELM_PARAMETERS" > /tmp/helm-args-input.yaml
+        ARGO_PARAMETERS_HELM_CHART_DIR=${CIRCLE_WORKING_DIRECTORY}/src/scripts/parameter-chart
+        ARGO_PARAMETERS_RAW_FILE="${ARGO_PARAMETERS_DIR}/raw-parameters.yaml"
+        # Generate template output with all values
+        helmv3 template \
+          parameter-chart \
+          --set-string image.tag="<< parameters.image-tag >>" \
+          --set mesh=<< parameters.mesh >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          --set-string previousChartName="$(cat /tmp/previous_chart_name)" \
+          --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
+          "$ARGO_PARAMETERS_HELM_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
+        echo "------------------------------------------------------"
+        echo "📊 Parameters:"
+        echo "------------------------------------------------------"
+        # Extract only the parameters section onwards, skipping warnings
+        sed -n '/^parameters:/,$p' "$ARGO_PARAMETERS_RAW_FILE" > "${ARGO_PARAMETERS_FILE}"
+        cat "${ARGO_PARAMETERS_FILE}"
+        echo "------------------------------------------------------"
 
   - run:
-      name: Parse Helm args
-      shell: /usr/bin/env python3
-      environment:
-        HELM_PARAMETERS_INPUT_FILE: /tmp/helm-args-input.yaml
-        HELM_PARAMETERS_OUTPUT_FILE: /tmp/helm-args.yaml
-      command: <<include(scripts/parse_helm_parameters.py)>>
-
-  - run:
-      name: Generate ArgoCD Application values
+      name: Generate ArgoCD Application manifest
       command: |
-        echo "------------------------------------------------------"
-        echo "⚙️  Rendered Helm Args:"
-        echo "------------------------------------------------------"
-        cat /tmp/helm-args.yaml
-        echo "------------------------------------------------------"
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
-        HELM_ARGS=$(cat /tmp/helm-args.yaml)
-        HELM_ARGS_INDENTED=$(echo "$HELM_ARGS" | awk 'NR==1{print $0; next} {print "      "$0}')
+        PARAMETERS=$(cat "${ARGO_PARAMETERS_FILE}")
+        PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
         cat \<< EOF > /tmp/argocd-app-values.yaml
         argocd:
           namespace: argocd
@@ -251,14 +267,7 @@ steps:
           targetRevision: HEAD
           helm:
             releaseName: << parameters.release-name >>
-            parameters:
-              - name: image.tag
-                value: "<< parameters.image-tag >>"
-              - name: canaryMigrationPhaseOverride
-                value: "$(cat /tmp/migration-phase-label)"
-              - name: previousChartName
-                value: "$(cat /tmp/previous_chart_name)"
-              $HELM_ARGS_INDENTED
+            $PARAMETERS_INDENTED
             file: |-
               $VALUES_INDENTED
 
@@ -296,7 +305,7 @@ steps:
       ignore-not-found: true
 
   - run:
-      name: Install Argo Application
+      name: Upsert Argo Application
       command: |
         helmv3 upgrade \
           --create-namespace \
