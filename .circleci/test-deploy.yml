@@ -182,3 +182,4 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           filters: *filter-staging
+          requires: [staging-helm-deploy-approval]

@@ -225,9 +225,59 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Generate ArgoCD Application parameters from Helm chart
+      name: Get ArgoCD Application parameters from Helm chart
       command: |
-        ARGO_PARAMETERS_HELM_CHART_DIR=${CIRCLE_WORKING_DIRECTORY}/src/scripts/parameter-chart
+        PARAMETERS_CHART_DIR=${ARGO_PARAMETERS_DIR}/parameter-chart
+        # Create directory structure for the chart
+        mkdir -p ${PARAMETERS_CHART_DIR}/templates
+        # Create Chart.yaml
+        cat \<< EOF > ${PARAMETERS_CHART_DIR}/Chart.yaml
+        apiVersion: v2
+        name: parameter-chart
+        description: Chart to visualize parameters
+        type: application
+        version: 0.1.0
+        appVersion: "1.0.0"
+        EOF
+        # Create empty values.yaml
+        echo "# Default values" > ${PARAMETERS_CHART_DIR}/values.yaml
+        # Create template that will just output parameters
+        cat \<< 'EOF' > ${PARAMETERS_CHART_DIR}/templates/parameters.yaml
+        {{- define "formatValue" -}}
+        {{- $value := . -}}
+        {{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
+        value: {{ $value }}
+        {{- else }}
+        value: {{ $value | quote }}
+        forceString: true
+        {{- end }}
+        {{- end -}}
+        {{- define "flatten" -}}
+        {{- $root := index . 0 -}}
+        {{- $prefix := index . 1 -}}
+        {{- range $k, $v := $root }}
+        {{- $name := "" -}}
+        {{- if eq $prefix "" -}}
+        {{- $name = $k -}}
+        {{- else -}}
+        {{- $name = printf "%s.%s" $prefix ($k | replace "." "\\.")  -}}
+        {{- end -}}
+        {{- if kindIs "map" $v }}
+        {{- include "flatten" (list $v $name) }}
+        {{- else if kindIs "slice" $v }}
+        {{- range $i, $item := $v }}
+        - name: {{ $name }}[{{ $i }}]
+        {{- include "formatValue" $item | nindent 2 }}
+        {{- end }}
+        {{- else }}
+        - name: {{ $name }}
+        {{- include "formatValue" $v | nindent 2 }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        parameters:
+        {{- include "flatten" (list .Values "") | nindent 2 -}}
+        EOF
         ARGO_PARAMETERS_RAW_FILE="${ARGO_PARAMETERS_DIR}/raw-parameters.yaml"
         # Generate template output with all values
         helmv3 template \
@@ -237,7 +287,7 @@ steps:
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --set-string previousChartName="$(cat /tmp/previous_chart_name)" \
           --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
-          "$ARGO_PARAMETERS_HELM_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
+          "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
         echo "------------------------------------------------------"
@@ -247,7 +297,7 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
-      name: Generate ArgoCD Application manifest
+      name: Create ArgoCD Application manifest
       command: |
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
