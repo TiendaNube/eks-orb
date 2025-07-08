@@ -19,7 +19,7 @@ workflows:
       - production-argo-deploy-approval:
           type: approval
           filters: *filter-production
-      - eks/helm-argo-deploy:
+      - eks/argo-deploy:
           name: production-argo-deploy
           context: microservices
           pre-steps:
@@ -84,7 +84,7 @@ workflows:
       - staging-argo-deploy-approval:
           type: approval
           filters: *filter-staging
-      - eks/helm-argo-deploy:
+      - eks/argo-deploy:
           name: staging-argo-deploy
           context: microservices
           pre-steps:
