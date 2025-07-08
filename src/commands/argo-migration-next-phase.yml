@@ -1,0 +1,82 @@
+description: |
+  Extracts the migration-phase label from a Rollout resource in a Helm chart.
+  The migration phase is written to /tmp/migration-phase-label for use in subsequent steps.
+
+parameters:
+  release-name:
+    description: Helm release name
+    type: string
+  values-file:
+    description: Helm values file for the service deployment
+    type: string
+  namespace:
+    description: Namespace where the chart will be installed
+    type: string
+  image-tag:
+    description: Which image tag will be installed
+    type: string
+  chart:
+    description: Chart that will be installed
+    type: string
+  args:
+    description: args to be used as helm client args
+    type: string
+    default: ""
+  mesh:
+    default: false
+    description: >
+      check if enabled label istio on namespace
+    type: boolean
+  profile:
+    description: EKS cluster profile name
+    type: string
+  previous-chart-name:
+    description: The name of the previous chart used for migration
+    type: string
+    default: ""
+
+steps:
+  - run:
+      name: Extract migration-phase label from Rollout
+      command: |
+        # Define the migration phase label key
+        export MIGRATION_PHASE_LABEL="canary.tiendanube.com/migration-phase"
+        # Render Helm chart to a temporary file
+        helmv3 template \
+          << parameters.release-name >> \
+          --values << parameters.values-file >> \
+          --namespace << parameters.namespace >> \
+          --set-string image.tag="<< parameters.image-tag >>" \
+          --set-string previousChartName="<< parameters.previous-chart-name >>" \
+          --set mesh=<< parameters.mesh >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          --set-string profile="<< parameters.profile >>" \
+          --dry-run=server \
+          << parameters.chart >> > /tmp/rendered.yaml
+        echo "------------------------------------------------------"
+        echo "📄 Rendered YAML file content:"
+        echo "------------------------------------------------------"
+        cat /tmp/rendered.yaml
+        echo "------------------------------------------------------"
+        # Define the yq expression for extracting the migration phase label
+        YQ_EXPR='select(.kind == "Rollout") | .metadata.labels["'"$MIGRATION_PHASE_LABEL"'"]'
+        # Extract the migration phase label (empty string if not found)
+        MIGRATION_PHASE=$(yq "$YQ_EXPR" /tmp/rendered.yaml)
+        # Default to "completed" if not found or is 'null'
+        if [ -n "$MIGRATION_PHASE" ] && [ "$MIGRATION_PHASE" != "null" ]; then
+          case "$MIGRATION_PHASE" in
+            safe|initial|traffic|completed)
+              echo "$MIGRATION_PHASE" > /tmp/migration-phase-label
+              ;;
+            *)
+              echo "❌ Error: MIGRATION_PHASE must be one of: safe, initial, traffic, completed"
+              echo "🔍 Current MIGRATION_PHASE value: $MIGRATION_PHASE"
+              exit 1
+              ;;
+          esac
+        else
+          echo "completed" > /tmp/migration-phase-label
+        fi
+        echo "------------------------------------------------------"
+        echo "🏷️  Migration phase label value: $(cat /tmp/migration-phase-label)"
+        echo "------------------------------------------------------"

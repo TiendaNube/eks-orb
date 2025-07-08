@@ -113,6 +113,7 @@ steps:
         echo "------------------------------------------------------"
         echo "export HELM_RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
         echo "export HELM_NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
+        echo "export EKS_NUBE_PROFILE=<< parameters.cluster-name >>" >> $BASH_ENV
 
   - when:
       condition: << parameters.checkout >>
@@ -171,49 +172,16 @@ steps:
         echo "📝 Previous chart name: $previous_chart_name"
         echo "------------------------------------------------------"
 
-  - run:
-      name: Extract migration-phase label from Rollout
-      command: |
-        # Define the migration phase label key
-        export MIGRATION_PHASE_LABEL="canary.tiendanube.com/migration-phase"
-        # Render Helm chart to a temporary file
-        helmv3 template \
-          << parameters.release-name >> \
-          --values << parameters.values-file >> \
-          --namespace << parameters.namespace >> \
-          --set-string image.tag="<< parameters.image-tag >>" \
-          --set-string previousChartName="$(cat ${HELM_DETECTION_CHART_NAME_FILE})" \
-          --set mesh=<< parameters.mesh >> \
-          <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --dry-run=server \
-          << parameters.chart >> > /tmp/rendered.yaml
-        echo "------------------------------------------------------"
-        echo "📄 Rendered YAML file content:"
-        echo "------------------------------------------------------"
-        cat /tmp/rendered.yaml
-        echo "------------------------------------------------------"
-        # Define the yq expression for extracting the migration phase label
-        YQ_EXPR='select(.kind == "Rollout") | .metadata.labels["'"$MIGRATION_PHASE_LABEL"'"]'
-        # Extract the migration phase label (empty string if not found)
-        MIGRATION_PHASE=$(yq "$YQ_EXPR" /tmp/rendered.yaml)
-        # Default to "completed" if not found or is 'null'
-        if [ -n "$MIGRATION_PHASE" ] && [ "$MIGRATION_PHASE" != "null" ]; then
-          case "$MIGRATION_PHASE" in
-            initial|traffic|completed)
-              echo "$MIGRATION_PHASE" > /tmp/migration-phase-label
-              ;;
-            *)
-              echo "❌ Error: MIGRATION_PHASE must be one of: initial, traffic, completed"
-              echo "🔍 Current MIGRATION_PHASE value: $MIGRATION_PHASE"
-              exit 1
-              ;;
-          esac
-        else
-          echo "completed" > /tmp/migration-phase-label
-        fi
-        echo "------------------------------------------------------"
-        echo "🏷️  Migration phase label value: $(cat /tmp/migration-phase-label)"
-        echo "------------------------------------------------------"
+  - argo-migration-next-phase:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
+      namespace: << parameters.namespace >>
+      image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      profile: ${EKS_NUBE_PROFILE}
+      previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
 
   - run:
       name: Get ArgoCD Application parameters from Helm chart
@@ -278,6 +246,7 @@ steps:
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --set-string previousChartName="$(cat ${HELM_DETECTION_CHART_NAME_FILE})" \
           --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
+          --set-string profile="${EKS_NUBE_PROFILE}" \
           "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
@@ -305,7 +274,7 @@ steps:
         source:
           path: microservices-v8
           repoURL: https://github.com/TiendaNube/helm-charts
-          targetRevision: HEAD
+          targetRevision: bac-386-configure-legacy-service-to-ignore-pods-created-by-argo
           helm:
             releaseName: << parameters.release-name >>
             $PARAMETERS_INDENTED
@@ -370,3 +339,8 @@ steps:
             release-name: << parameters.release-name >>
             namespace: << parameters.namespace >>
             timeout: << parameters.rollout-status-timeout >>
+
+  - argo-migration-checkpoint:
+      release-name: << parameters.release-name >>
+      namespace: argocd
+      migration-phase: $(cat /tmp/migration-phase-label)
