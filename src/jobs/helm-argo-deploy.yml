@@ -111,6 +111,8 @@ steps:
         echo "export HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name" >> $BASH_ENV
         echo "📋 Helm detection directory: $HELM_DETECTION_DIR"
         echo "------------------------------------------------------"
+        echo "export HELM_RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export HELM_NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
 
   - when:
       condition: << parameters.checkout >>
@@ -149,10 +151,11 @@ steps:
 
   - run:
       name: Detect Helm version
-      environment:
-        HELM_RELEASE_NAME: << parameters.release-name >>
-        HELM_NAMESPACE: << parameters.namespace >>
-        HELM_DETECTION_DIR: ${HELM_DETECTION_DIR}
+      description: |
+        Script to detect which Helm version was used to create infrastructure. Usage: Set the following environment variables:
+          HELM_RELEASE_NAME - The release name to check
+          HELM_NAMESPACE - The namespace to check
+          HELM_DETECTION_DIR - Directory to store detection results
       command: <<include(scripts/detect_helm_version.sh)>>
 
   - run:
