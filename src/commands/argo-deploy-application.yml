@@ -1,0 +1,218 @@
+description: |
+  Generate an ArgoCD Application from a Helm chart.
+
+parameters:
+  release-name:
+    type: string
+  values-file:
+    type: string
+  namespace:
+    type: string
+  image-tag:
+    type: string
+  args:
+    type: string
+  mesh:
+    type: boolean
+  profile-file-name:
+    description: The name of the resulting file where attributes related to the environment will be stored
+    type: string
+  destination-server:
+    type: string
+  project:
+    type: string
+  set-path-annotation:
+    type: string
+  s3-chart-repo:
+    type: string
+  helm-app-status-timeout:
+    type: string
+  rollout-status-timeout:
+    type: string
+  rollout-status:
+    type: boolean
+  # Parameters for ArgoCD Application migration
+  old-school-chart-file:
+    description: The file name of the chart used before migrating
+    type: string
+  migration-next-phase-file:
+    description: The file name that contains the migration phase to use
+    type: string
+  # Parameters for ArgoCD Application migration
+
+steps:
+  - run:
+      name: Compute ArgoCD Application parameters from Helm chart
+      command: |
+        echo "------------------------------------------------------"
+        ARGO_PARAMETERS_DIR=/tmp/argo-parameters
+        PARAMETERS_CHART_DIR=$ARGO_PARAMETERS_DIR/parameter-chart
+        MIGRATION_NEXT_PHASE=$(cat << parameters.migration-next-phase-file >>)
+        OLD_SCHOOL_CHART_NAME=$(cat << parameters.old-school-chart-file >>)
+        mkdir -p "$ARGO_PARAMETERS_DIR"
+        # Clean any previous files
+        rm -f "$ARGO_PARAMETERS_DIR"/* 2>/dev/null || true
+        echo "📄 Environment already set up for this step"
+        echo "------------------------------------------------------"
+        # Create directory structure for the chart
+        mkdir -p $PARAMETERS_CHART_DIR/templates
+        # Create Chart.yaml
+        cat \<< EOF > $PARAMETERS_CHART_DIR/Chart.yaml
+        apiVersion: v2
+        name: parameter-chart
+        description: Chart to visualize parameters
+        type: application
+        version: 0.1.0
+        appVersion: "1.0.0"
+        EOF
+        # Create empty values.yaml
+        echo "# Default values" > $PARAMETERS_CHART_DIR/values.yaml
+        # Create template that will just output parameters
+        cat \<< 'EOF' > $PARAMETERS_CHART_DIR/templates/parameters.yaml
+        {{- define "formatValue" -}}
+        {{- $value := . -}}
+        {{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
+        value: {{ $value }}
+        {{- else }}
+        value: {{ $value | quote }}
+        forceString: true
+        {{- end }}
+        {{- end -}}
+        {{- define "flatten" -}}
+        {{- $root := index . 0 -}}
+        {{- $prefix := index . 1 -}}
+        {{- range $k, $v := $root }}
+        {{- $name := "" -}}
+        {{- if eq $prefix "" -}}
+        {{- $name = $k -}}
+        {{- else -}}
+        {{- $name = printf "%s.%s" $prefix ($k | replace "." "\\.")  -}}
+        {{- end -}}
+        {{- if kindIs "map" $v }}
+        {{- include "flatten" (list $v $name) }}
+        {{- else if kindIs "slice" $v }}
+        {{- range $i, $item := $v }}
+        - name: {{ $name }}[{{ $i }}]
+        {{- include "formatValue" $item | nindent 2 }}
+        {{- end }}
+        {{- else }}
+        - name: {{ $name }}
+        {{- include "formatValue" $v | nindent 2 }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        parameters:
+        {{- include "flatten" (list .Values "") | nindent 2 -}}
+        EOF
+        ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
+        ARGO_PARAMETERS_RAW_FILE="$ARGO_PARAMETERS_DIR/raw-parameters.yaml"
+        # Generate template output with all values
+        helmv3 template \
+          parameter-chart \
+          --set-string image.tag="<< parameters.image-tag >>" \
+          --set mesh=<< parameters.mesh >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          --set-string previousChartName="$OLD_SCHOOL_CHART_NAME" \
+          --set-string canaryMigrationPhaseOverride="$MIGRATION_NEXT_PHASE" \
+          --values << parameters.profile-file-name >> \
+          "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
+        echo "------------------------------------------------------"
+        echo "📊 Parameters:"
+        echo "------------------------------------------------------"
+        # Extract only the parameters section onwards, skipping warnings
+        sed -n '/^parameters:/,$p' "$ARGO_PARAMETERS_RAW_FILE" > "${ARGO_PARAMETERS_FILE}"
+        cat "${ARGO_PARAMETERS_FILE}"
+        echo "------------------------------------------------------"
+
+  - run:
+      name: Create ArgoCD Application manifest
+      command: |
+        ARGO_PARAMETERS_DIR=/tmp/argo-parameters
+        ARGO_APP_VALUE_FILE="$ARGO_PARAMETERS_DIR/argocd-app-values.yaml"
+        VALUES=$(cat << parameters.values-file >>)
+        VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
+        ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
+        PARAMETERS=$(cat "$ARGO_PARAMETERS_FILE")
+        PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
+        cat \<< EOF > $ARGO_APP_VALUE_FILE
+        argocd:
+          namespace: argocd
+
+        destination:
+          namespace: << parameters.namespace >>
+          server: << parameters.destination-server >>
+
+        source:
+          path: microservices-v8
+          repoURL: https://github.com/TiendaNube/helm-charts
+          targetRevision: master
+          helm:
+            releaseName: << parameters.release-name >>
+            $PARAMETERS_INDENTED
+            file: |-
+              $VALUES_INDENTED
+
+        project: << parameters.project >>
+
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            applyOutOfSyncOnly: true
+            createNamespace: true
+            pruneLast: true
+            validate: true
+            replace: false
+        EOF
+        echo "------------------------------------------------------"
+        echo "📄 ArgoCD Application manifest:"
+        echo "------------------------------------------------------"
+        cat $ARGO_APP_VALUE_FILE
+        echo "------------------------------------------------------"
+
+  - annotation:
+      app-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+      resource-name: rollout
+      set-name: "kubernetes.io/previous-tag"
+      get-current-name: kubernetes\.io\/current-tag
+      set-path-annotation: << parameters.set-path-annotation >>
+      get-current-value: true
+      ignore-not-found: true
+
+  - annotation:
+      app-name: << parameters.release-name >>
+      namespace: << parameters.namespace >>
+      resource-name: rollout
+      set-name: "kubernetes.io/current-tag"
+      set-value: "<< parameters.image-tag >>"
+      ignore-not-found: true
+
+  - run:
+      name: Upsert Argo Application
+      command: |
+        ARGO_PARAMETERS_DIR=/tmp/argo-parameters
+        ARGO_APP_VALUE_FILE="$ARGO_PARAMETERS_DIR/argocd-app-values.yaml"
+        helmv3 upgrade \
+          --create-namespace \
+          --install \
+          << parameters.release-name >>-app \
+          --values << parameters.values-file >> \
+          --values $ARGO_APP_VALUE_FILE \
+          --namespace << parameters.namespace >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          << parameters.s3-chart-repo >>/argocd-apps
+
+  - helm-status:
+      release-name: << parameters.release-name >>-app
+      namespace: << parameters.namespace >>
+      timeout: << parameters.helm-app-status-timeout >>
+
+  - when:
+      condition: << parameters.rollout-status >>
+      steps:
+        - argo-rollout-status:
+            release-name: << parameters.release-name >>
+            namespace: << parameters.namespace >>
+            timeout: << parameters.rollout-status-timeout >>

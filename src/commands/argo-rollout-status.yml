@@ -19,41 +19,10 @@ parameters:
 steps:
   - run:
       name: Check Argo rollout status
-      command: |
-          set +e
-          timeout << parameters.timeout >> bash -o pipefail -c '
-            i=1
-            while true; do
-              echo "========================================================"
-              echo "🔍 Checking release status (attempt $i)..."
-              output=$(kubectl argo rollouts get rollout << parameters.release-name >> \
-                --namespace << parameters.namespace >>)
-              echo "$output"
-              status=$(echo "$output" | grep "^Status:" | awk '"'"'{print $3}'"'"')
-              case "$status" in
-                Healthy|Completed)
-                  echo "✅ Rollout is $status."
-                  exit 0
-                  ;;
-                Degraded|Error|Aborted)
-                  echo "❌ Release status is $status. Exiting with failure."
-                  exit 1
-                  ;;
-                Progressing|Paused)
-                  echo "⏳ Release status is $status. Waiting..."
-                  ;;
-                *)
-                  echo "❓ Unknown status: $status. Waiting..."
-                  ;;
-              esac
-              i=$((i+1))
-              sleep << parameters.check-interval >>
-            done
-          '
-          TIMEOUT_RESULT=$?
-          if [[ $TIMEOUT_RESULT -eq 124 ]]; then
-            echo "⏰ Timeout reached while checking release status."
-            exit 0
-          else
-            exit $TIMEOUT_RESULT
-          fi
+      environment:
+        ROLLOUT_NAME: << parameters.release-name >>
+        NAMESPACE: << parameters.namespace >>
+        ROLLOUT_STATUS_TIMEOUT: << parameters.timeout >>
+        ROLLOUT_STATUS_CHECK_INTERVAL: << parameters.check-interval >>
+        COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
+      command: << include(scripts/argo_rollout_status.sh) >>

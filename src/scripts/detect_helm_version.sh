@@ -3,8 +3,8 @@
 # Script to detect which Helm version was used to create infrastructure
 # 
 # Usage: Set the following environment variables:
-#   HELM_RELEASE_NAME - The release name to check
-#   HELM_NAMESPACE - The namespace to check
+#   NUBE_RELEASE_NAME - The release name to check
+#   NUBE_NAMESPACE - The namespace to check
 #   HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm_detection)
 #
 # Returns:
@@ -156,19 +156,22 @@ detect_helm_version() {
   return 0
 }
 
-# Get release name and namespace from environment variables
-RELEASE_NAME=${HELM_RELEASE_NAME}
-NAMESPACE=${HELM_NAMESPACE}
+main() {
+  local release_name=$(eval echo "${NUBE_RELEASE_NAME}")
+  local namespace=$(eval echo "${NUBE_NAMESPACE}")
 
-# Check if we have the required environment variables
-if [ -z "$RELEASE_NAME" ] || [ -z "$NAMESPACE" ]; then
-  echo "Error: Missing required environment variables"
-  echo "Please set the following environment variables:"
-  echo "     HELM_RELEASE_NAME - The release name to check"
-  echo "     HELM_NAMESPACE - The namespace to check"
-  echo "     HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm_detection)"
-  exit 1
-fi
+  # Check if we have the required environment variables
+  if [ -z "$release_name" ] || [ -z "$namespace" ]; then
+    echo "Error: Missing required environment variables"
+    echo "Please set the following environment variables:"
+    echo "     NUBE_RELEASE_NAME - The release name to check"
+    echo "     NUBE_NAMESPACE - The namespace to check"
+    echo "     HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm_detection)"
+    exit 1
+  fi
 
-detect_helm_version "$RELEASE_NAME" "$NAMESPACE"
-exit $?
+  detect_helm_version "$release_name" "$namespace"
+  exit $?
+}
+
+main
