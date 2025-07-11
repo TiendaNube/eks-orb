@@ -10,6 +10,8 @@ parameters:
     type: string
   image-tag:
     type: string
+  chart:
+    type: string
   args:
     type: string
   mesh:
@@ -40,6 +42,35 @@ parameters:
   # Parameters for ArgoCD Application migration
 
 steps:
+  - argo-migration-next-phase:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
+      namespace: << parameters.namespace >>
+      image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      profile: << parameters.profile >>
+      output-file-name: /tmp/migration-phase-label
+
+  - run:
+      name: Validate migration phase
+      command: |
+        if [ -f "/tmp/migration-phase-label" ]; then
+          CURRENT_PHASE=$(cat /tmp/migration-phase-label)
+          EXPECTED_PHASE="<< parameters.migration-phase >>"
+          if [ "$CURRENT_PHASE" != "$EXPECTED_PHASE" ]; then
+            echo "Migration phase mismatch. Expected '<< parameters.migration-phase >>' but got '$CURRENT_PHASE'"
+            echo "Aborting this command, workflow will continue with next steps"
+            exit 0
+          else
+            echo "Migration phase validated successfully"
+          fi
+        else
+          echo "Warning: Migration phase file not found at /tmp/migration-phase-label"
+          echo "Continuing with deployment..."
+        fi
+
   - run:
       name: Compute ArgoCD Application parameters from Helm chart
       command: |
@@ -125,12 +156,13 @@ steps:
       name: Create ArgoCD Application manifest
       command: |
         ARGO_PARAMETERS_DIR=/tmp/argo-parameters
+        ARGO_APP_VALUE_FILE="$ARGO_PARAMETERS_DIR/argocd-app-values.yaml"
         VALUES=$(cat << parameters.values-file >>)
         VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
         ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
         PARAMETERS=$(cat "$ARGO_PARAMETERS_FILE")
         PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
-        cat \<< EOF > $ARGO_PARAMETERS_DIR/argocd-app-values.yaml
+        cat \<< EOF > $ARGO_APP_VALUE_FILE
         argocd:
           namespace: argocd
 
@@ -164,7 +196,7 @@ steps:
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
         echo "------------------------------------------------------"
-        cat $ARGO_PARAMETERS_DIR/argocd-app-values.yaml
+        cat $ARGO_APP_VALUE_FILE
         echo "------------------------------------------------------"
 
   - annotation:
@@ -189,12 +221,13 @@ steps:
       name: Upsert Argo Application
       command: |
         ARGO_PARAMETERS_DIR=/tmp/argo-parameters
+        ARGO_APP_VALUE_FILE="$ARGO_PARAMETERS_DIR/argocd-app-values.yaml"
         helmv3 upgrade \
           --create-namespace \
           --install \
           << parameters.release-name >>-app \
           --values << parameters.values-file >> \
-          --values $ARGO_PARAMETERS_DIR/argocd-app-values.yaml \
+          --values $ARGO_APP_VALUE_FILE \
           --namespace << parameters.namespace >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           << parameters.s3-chart-repo >>/argocd-apps

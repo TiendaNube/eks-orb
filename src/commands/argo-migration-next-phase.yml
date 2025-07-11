@@ -1,5 +1,5 @@
 description: |
-  Compute the next migration phase. 
+  Compute the next migration phase.
   The migration phase is written to << parameters.output-file-name >> for use in subsequent steps.
 
 parameters:

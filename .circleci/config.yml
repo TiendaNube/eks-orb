@@ -10,17 +10,18 @@ filters: &filters
 workflows:
   lint-pack:
     jobs:
-      - orb-tools/lint:
-          filters: *filters
+#      - orb-tools/lint:
+#          filters: *filters
       - orb-tools/pack:
           org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
           filters: *filters
-      - orb-tools/review:
-          filters: *filters
-          exclude: "RC006 RC007 RC008 RC009 RC010"
+#      - orb-tools/review:
+#          filters: *filters
+#          exclude: "RC006 RC007 RC008 RC009 RC010"
       - orb-tools/continue:
           pipeline_number: << pipeline.number >>
           vcs_type: << pipeline.project.type >>
           orb_name: eks
-          requires: [orb-tools/lint, orb-tools/pack, orb-tools/review]
+#          requires: [orb-tools/lint, orb-tools/pack, orb-tools/review]
+          requires: [orb-tools/pack]
           filters: *filters

@@ -137,17 +137,6 @@ steps:
               helmv3 repo add << parameters.s3-chart-repo >> s3://<< parameters.s3-chart-repo >>/
               helmv3 repo update
 
-  - argo-migration-next-phase:
-      release-name: << parameters.release-name >>
-      values-file: << parameters.values-file >>
-      namespace: << parameters.namespace >>
-      image-tag: << parameters.image-tag >>
-      chart: << parameters.chart >>
-      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-      mesh: << parameters.mesh >>
-      profile: << parameters.cluster-name >>
-      output-file-name: /tmp/migration-phase-label
-
   - run:
       name: Detect Helm version
       description: |
@@ -175,6 +164,7 @@ steps:
       values-file: << parameters.values-file >>
       namespace: << parameters.namespace >>
       image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
       args: <<#parameters.args>><<parameters.args>><</parameters.args>>
       mesh: << parameters.mesh >>
       destination-server: << parameters.destination-server >>
@@ -186,82 +176,61 @@ steps:
       project: << parameters.project >>
       profile: << parameters.cluster-name >>
       migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-      migration-phase: $(cat /tmp/migration-phase-label)
-      
-  # If phase was 'safe', advance to 'initial'
-  - when:
-      condition:
-        equal: [safe, $(cat /tmp/migration-phase-label)]
-      steps:
-        - run:
-            name: Advance to 'initial' phase
-            command: echo "initial" > /tmp/migration-phase-label
-        - argo-deploy-application:
-            release-name: << parameters.release-name >>
-            values-file: << parameters.values-file >>
-            namespace: << parameters.namespace >>
-            image-tag: << parameters.image-tag >>
-            args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-            mesh: << parameters.mesh >>
-            destination-server: << parameters.destination-server >>
-            set-path-annotation: << parameters.set-path-annotation >>
-            s3-chart-repo: << parameters.s3-chart-repo >>
-            helm-app-status-timeout: << parameters.helm-app-status-timeout >>
-            rollout-status: << parameters.rollout-status >>
-            rollout-status-timeout: << parameters.rollout-status-timeout >>
-            project: << parameters.project >>
-            profile: << parameters.cluster-name >>
-            migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-            migration-phase: initial
-            
-  # If phase was 'initial', advance to 'traffic'
-  - when:
-      condition:
-        equal: [initial, $(cat /tmp/migration-phase-label)]
-      steps:
-        - run:
-            name: Advance to 'traffic' phase
-            command: echo "traffic" > /tmp/migration-phase-label
-        - argo-deploy-application:
-            release-name: << parameters.release-name >>
-            values-file: << parameters.values-file >>
-            namespace: << parameters.namespace >>
-            image-tag: << parameters.image-tag >>
-            args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-            mesh: << parameters.mesh >>
-            destination-server: << parameters.destination-server >>
-            set-path-annotation: << parameters.set-path-annotation >>
-            s3-chart-repo: << parameters.s3-chart-repo >>
-            helm-app-status-timeout: << parameters.helm-app-status-timeout >>
-            rollout-status: << parameters.rollout-status >>
-            rollout-status-timeout: << parameters.rollout-status-timeout >>
-            project: << parameters.project >>
-            profile: << parameters.cluster-name >>
-            migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-            migration-phase: traffic
-            
-  # If phase was 'traffic', advance to 'completed'
-  - when:
-      condition:
-        equal: [traffic, $(cat /tmp/migration-phase-label)]
-      steps:
-        - run:
-            name: Advance to 'completed' phase
-            command: echo "completed" > /tmp/migration-phase-label
-        - argo-deploy-application:
-            release-name: << parameters.release-name >>
-            values-file: << parameters.values-file >>
-            namespace: << parameters.namespace >>
-            image-tag: << parameters.image-tag >>
-            args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-            mesh: << parameters.mesh >>
-            destination-server: << parameters.destination-server >>
-            set-path-annotation: << parameters.set-path-annotation >>
-            s3-chart-repo: << parameters.s3-chart-repo >>
-            helm-app-status-timeout: << parameters.helm-app-status-timeout >>
-            rollout-status: << parameters.rollout-status >>
-            rollout-status-timeout: << parameters.rollout-status-timeout >>
-            project: << parameters.project >>
-            profile: << parameters.cluster-name >>
-            migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-            migration-phase: completed
+      migration-phase: safe
+
+  - argo-deploy-application:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
+      namespace: << parameters.namespace >>
+      image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      destination-server: << parameters.destination-server >>
+      set-path-annotation: << parameters.set-path-annotation >>
+      s3-chart-repo: << parameters.s3-chart-repo >>
+      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
+      rollout-status: << parameters.rollout-status >>
+      rollout-status-timeout: << parameters.rollout-status-timeout >>
+      project: << parameters.project >>
+      profile: << parameters.cluster-name >>
+      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
+      migration-phase: initial
+
+  - argo-deploy-application:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
+      namespace: << parameters.namespace >>
+      image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      destination-server: << parameters.destination-server >>
+      set-path-annotation: << parameters.set-path-annotation >>
+      s3-chart-repo: << parameters.s3-chart-repo >>
+      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
+      rollout-status: << parameters.rollout-status >>
+      rollout-status-timeout: << parameters.rollout-status-timeout >>
+      project: << parameters.project >>
+      profile: << parameters.cluster-name >>
+      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
+      migration-phase: traffic
+
+  - argo-deploy-application:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
+      namespace: << parameters.namespace >>
+      image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      destination-server: << parameters.destination-server >>
+      set-path-annotation: << parameters.set-path-annotation >>
+      s3-chart-repo: << parameters.s3-chart-repo >>
+      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
+      rollout-status: << parameters.rollout-status >>
+      rollout-status-timeout: << parameters.rollout-status-timeout >>
+      project: << parameters.project >>
+      profile: << parameters.cluster-name >>
+      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
+      migration-phase: completed
