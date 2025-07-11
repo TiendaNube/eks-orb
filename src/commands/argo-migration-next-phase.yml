@@ -1,44 +1,40 @@
 description: |
-  Extracts the migration-phase label from a Rollout resource in a Helm chart.
-  The migration phase is written to /tmp/migration-phase-label for use in subsequent steps.
+  Compute the next migration phase. 
+  The migration phase is written to << parameters.output-file-name >> for use in subsequent steps.
 
 parameters:
   release-name:
-    description: Helm release name
     type: string
   values-file:
-    description: Helm values file for the service deployment
     type: string
   namespace:
-    description: Namespace where the chart will be installed
     type: string
   image-tag:
-    description: Which image tag will be installed
     type: string
   chart:
-    description: Chart that will be installed
     type: string
   args:
-    description: args to be used as helm client args
     type: string
-    default: ""
   mesh:
-    default: false
-    description: >
-      check if enabled label istio on namespace
     type: boolean
   profile:
-    description: EKS cluster profile name
     type: string
-  previous-chart-name:
-    description: The name of the previous chart used for migration
+  output-file-name:
+    description: The name of the resulting file where the migration phase will be stored
     type: string
-    default: ""
 
 steps:
   - run:
-      name: Extract migration-phase label from Rollout
+      name: Compute migration phase
       command: |
+        echo "------------------------------------------------------"
+        MIGRATION_PHASE_DIR=/tmp/migration-phase
+        mkdir -p "$MIGRATION_PHASE_DIR"
+        # Clean any previous files
+        rm -f "$MIGRATION_PHASE_DIR"/* 2>/dev/null || true
+        MIGRATION_PHASE_RAW_FILE=$MIGRATION_PHASE_DIR/rendered.yaml
+        echo "📄 Environment already set up for this step"
+        echo "------------------------------------------------------"
         # Define the migration phase label key
         export MIGRATION_PHASE_LABEL="canary.tiendanube.com/migration-phase"
         # Render Helm chart to a temporary file
@@ -47,26 +43,25 @@ steps:
           --values << parameters.values-file >> \
           --namespace << parameters.namespace >> \
           --set-string image.tag="<< parameters.image-tag >>" \
-          --set-string previousChartName="<< parameters.previous-chart-name >>" \
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --set-string profile="<< parameters.profile >>" \
           --dry-run=server \
-          << parameters.chart >> > /tmp/rendered.yaml
+          << parameters.chart >> > $MIGRATION_PHASE_RAW_FILE
         echo "------------------------------------------------------"
-        echo "📄 Rendered YAML file content:"
+        echo "📄 Computed YAML file:"
         echo "------------------------------------------------------"
-        cat /tmp/rendered.yaml
+        cat $MIGRATION_PHASE_RAW_FILE
         echo "------------------------------------------------------"
         # Define the yq expression for extracting the migration phase label
         YQ_EXPR='select(.kind == "Rollout") | .metadata.labels["'"$MIGRATION_PHASE_LABEL"'"]'
         # Extract the migration phase label (empty string if not found)
-        MIGRATION_PHASE=$(yq "$YQ_EXPR" /tmp/rendered.yaml)
+        MIGRATION_PHASE=$(yq "$YQ_EXPR" $MIGRATION_PHASE_RAW_FILE)
         # Default to "completed" if not found or is 'null'
         if [ -n "$MIGRATION_PHASE" ] && [ "$MIGRATION_PHASE" != "null" ]; then
           case "$MIGRATION_PHASE" in
             safe|initial|traffic|completed)
-              echo "$MIGRATION_PHASE" > /tmp/migration-phase-label
+              echo "$MIGRATION_PHASE" > << parameters.output-file-name >>
               ;;
             *)
               echo "❌ Error: MIGRATION_PHASE must be one of: safe, initial, traffic, completed"
@@ -75,8 +70,8 @@ steps:
               ;;
           esac
         else
-          echo "completed" > /tmp/migration-phase-label
+          echo "completed" > << parameters.output-file-name >>
         fi
         echo "------------------------------------------------------"
-        echo "🏷️  Migration phase label value: $(cat /tmp/migration-phase-label)"
+        echo "🏷️  Migration phase: $(cat << parameters.output-file-name >>)"
         echo "------------------------------------------------------"
