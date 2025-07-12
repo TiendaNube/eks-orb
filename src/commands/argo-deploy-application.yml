@@ -10,8 +10,6 @@ parameters:
     type: string
   image-tag:
     type: string
-  chart:
-    type: string
   args:
     type: string
   mesh:
@@ -33,50 +31,23 @@ parameters:
   rollout-status:
     type: boolean
   # Parameters for ArgoCD Application migration
-  migration-previous-chart-name:
-    description: The name of the chart used before migrating
+  old-school-chart-file:
+    description: The file name of the chart used before migrating
     type: string
-  migration-phase:
-    description: The migration phase to use
+  migration-next-phase-file:
+    description: The file name that contains the migration phase to use
     type: string
   # Parameters for ArgoCD Application migration
 
 steps:
-  - argo-migration-next-phase:
-      release-name: << parameters.release-name >>
-      values-file: << parameters.values-file >>
-      namespace: << parameters.namespace >>
-      image-tag: << parameters.image-tag >>
-      chart: << parameters.chart >>
-      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-      mesh: << parameters.mesh >>
-      profile: << parameters.profile >>
-      output-file-name: /tmp/migration-phase-label
-
-  - run:
-      name: Validate migration phase
-      command: |
-        if [ -f "/tmp/migration-phase-label" ]; then
-          CURRENT_PHASE=$(cat /tmp/migration-phase-label)
-          EXPECTED_PHASE="<< parameters.migration-phase >>"
-          if [ "$CURRENT_PHASE" != "$EXPECTED_PHASE" ]; then
-            echo "Migration phase mismatch. Expected '<< parameters.migration-phase >>' but got '$CURRENT_PHASE'"
-            echo "Aborting this command, workflow will continue with next steps"
-            exit 0
-          else
-            echo "Migration phase validated successfully"
-          fi
-        else
-          echo "Warning: Migration phase file not found at /tmp/migration-phase-label"
-          echo "Continuing with deployment..."
-        fi
-
   - run:
       name: Compute ArgoCD Application parameters from Helm chart
       command: |
         echo "------------------------------------------------------"
         ARGO_PARAMETERS_DIR=/tmp/argo-parameters
         PARAMETERS_CHART_DIR=$ARGO_PARAMETERS_DIR/parameter-chart
+        MIGRATION_NEXT_PHASE=$(cat << parameters.migration-next-phase-file >>)
+        OLD_SCHOOL_CHART_NAME=$(cat << parameters.old-school-chart-file >>)
         mkdir -p "$ARGO_PARAMETERS_DIR"
         # Clean any previous files
         rm -f "$ARGO_PARAMETERS_DIR"/* 2>/dev/null || true
@@ -140,8 +111,8 @@ steps:
           --set-string image.tag="<< parameters.image-tag >>" \
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --set-string previousChartName="<< parameters.migration-previous-chart-name >>" \
-          --set-string canaryMigrationPhaseOverride="<< parameters.migration-phase >>" \
+          --set-string previousChartName="$OLD_SCHOOL_CHART_NAME" \
+          --set-string canaryMigrationPhaseOverride="$MIGRATION_NEXT_PHASE" \
           --set-string profile="<< parameters.profile >>" \
           "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"

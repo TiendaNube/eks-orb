@@ -86,22 +86,6 @@ parameters:
     default: tiendanube
 
 steps:
-  - run:
-      name: Setup Environment Variables
-      description: Define environment variables to share between steps
-      command: |
-        echo "------------------------------------------------------"
-        HELM_DETECTION_DIR=/tmp/helm-detection
-        mkdir -p "$HELM_DETECTION_DIR"
-        # Clean any previous files
-        rm -f "$HELM_DETECTION_DIR"/* 2>/dev/null || true
-        echo "export HELM_DETECTION_DIR=$HELM_DETECTION_DIR" >> $BASH_ENV
-        echo "export HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name" >> $BASH_ENV
-        echo "📋 Helm detection directory: $HELM_DETECTION_DIR"
-        echo "------------------------------------------------------"
-        echo "export HELM_RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
-        echo "export HELM_NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
-
   - when:
       condition: << parameters.checkout >>
       steps:
@@ -138,7 +122,11 @@ steps:
               helmv3 repo update
 
   - run:
-      name: Detect Helm version
+      name: Detect old-school Helm version & chart name
+      environment:
+        HELM_RELEASE_NAME: << parameters.release-name >>
+        HELM_NAMESPACE: << parameters.namespace >>
+        HELM_DETECTION_DIR: /tmp/helm-detection
       description: |
         Script to detect which Helm version was used to create infrastructure. Usage: Set the following environment variables:
           HELM_RELEASE_NAME - The release name to check
@@ -147,19 +135,21 @@ steps:
       command: <<include(scripts/detect_helm_version.sh)>>
 
   - run:
-      name: Validate previous Helm chart name
+      name: Validate old-school Helm chart name
       command: |
+        HELM_DETECTION_DIR=/tmp/helm-detection
+        HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name
         # Validate that previous_chart_name can only be microservices-v6 or empty
-        previous_chart_name=$(cat ${HELM_DETECTION_CHART_NAME_FILE})
+        previous_chart_name=$(cat $HELM_DETECTION_CHART_NAME_FILE)
         if [ -n "$previous_chart_name" ] && [ "$previous_chart_name" != "microservices-v6" ]; then
           echo "❌ Error: previous_chart_name must be 'microservices-v6' or empty"
           exit 1
         fi
         echo "------------------------------------------------------"
-        echo "📝 Previous chart name: $previous_chart_name"
+        echo "📝 Old-school chart name: $previous_chart_name"
         echo "------------------------------------------------------"
 
-  - argo-deploy-application:
+  - argo-migration-next-phase:
       release-name: << parameters.release-name >>
       values-file: << parameters.values-file >>
       namespace: << parameters.namespace >>
@@ -167,23 +157,14 @@ steps:
       chart: << parameters.chart >>
       args: <<#parameters.args>><<parameters.args>><</parameters.args>>
       mesh: << parameters.mesh >>
-      destination-server: << parameters.destination-server >>
-      set-path-annotation: << parameters.set-path-annotation >>
-      s3-chart-repo: << parameters.s3-chart-repo >>
-      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
-      rollout-status: << parameters.rollout-status >>
-      rollout-status-timeout: << parameters.rollout-status-timeout >>
-      project: << parameters.project >>
       profile: << parameters.cluster-name >>
-      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-      migration-phase: safe
+      output-file-name: /tmp/migration-phase/label
 
   - argo-deploy-application:
       release-name: << parameters.release-name >>
       values-file: << parameters.values-file >>
       namespace: << parameters.namespace >>
       image-tag: << parameters.image-tag >>
-      chart: << parameters.chart >>
       args: <<#parameters.args>><<parameters.args>><</parameters.args>>
       mesh: << parameters.mesh >>
       destination-server: << parameters.destination-server >>
@@ -194,43 +175,13 @@ steps:
       rollout-status-timeout: << parameters.rollout-status-timeout >>
       project: << parameters.project >>
       profile: << parameters.cluster-name >>
-      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-      migration-phase: initial
+      old-school-chart-file: /tmp/helm-detection/chart_name
+      migration-next-phase-file: /tmp/migration-phase/label
 
-  - argo-deploy-application:
-      release-name: << parameters.release-name >>
-      values-file: << parameters.values-file >>
-      namespace: << parameters.namespace >>
-      image-tag: << parameters.image-tag >>
-      chart: << parameters.chart >>
-      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-      mesh: << parameters.mesh >>
-      destination-server: << parameters.destination-server >>
-      set-path-annotation: << parameters.set-path-annotation >>
-      s3-chart-repo: << parameters.s3-chart-repo >>
-      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
-      rollout-status: << parameters.rollout-status >>
-      rollout-status-timeout: << parameters.rollout-status-timeout >>
-      project: << parameters.project >>
-      profile: << parameters.cluster-name >>
-      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-      migration-phase: traffic
-
-  - argo-deploy-application:
-      release-name: << parameters.release-name >>
-      values-file: << parameters.values-file >>
-      namespace: << parameters.namespace >>
-      image-tag: << parameters.image-tag >>
-      chart: << parameters.chart >>
-      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
-      mesh: << parameters.mesh >>
-      destination-server: << parameters.destination-server >>
-      set-path-annotation: << parameters.set-path-annotation >>
-      s3-chart-repo: << parameters.s3-chart-repo >>
-      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
-      rollout-status: << parameters.rollout-status >>
-      rollout-status-timeout: << parameters.rollout-status-timeout >>
-      project: << parameters.project >>
-      profile: << parameters.cluster-name >>
-      migration-previous-chart-name: $(cat ${HELM_DETECTION_CHART_NAME_FILE})
-      migration-phase: completed
+  - run:
+      name: Triggers the ArgoCD migration workflow
+      environment:
+        RELEASE_NAME: << parameters.release-name >>
+        NAMESPACE: << parameters.namespace >>
+        CURRENT_MIGRATION_PHASE_FILE: /tmp/migration-phase/label
+      command: <<include(scripts/argo_migration_workflow.sh)>>
