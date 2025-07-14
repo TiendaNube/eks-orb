@@ -84,8 +84,38 @@ parameters:
     description: ArgoCD project name
     type: string
     default: tiendanube
+  # New parameters for ArgoCD migration workflow
+  migration-feedback-timeout:
+    description: >
+      The maximum time to wait for user feedback during the ArgoCD migration workflow (e.g. 1s, 2m, 3h).
+      Must be a floating point number with an optional suffix: 's' for seconds (the default), 'm' for minutes, 'h' for hours or 'd' for days.
+      A duration of 0 (the default) disables the associated timeout, in order to wait until the rollout reaches a final state.
+    type: string
+    default: '0'
 
 steps:
+  - run:
+      name: Computing Environment Profile
+      command: |
+        PROFILE_NAME=<< parameters.cluster-name >>
+        echo "------------------------------------------------------"
+        echo "📝 Computing Environment Profile: $PROFILE_NAME"
+        echo "------------------------------------------------------"
+        if [[ "$PROFILE_NAME" == "production" ]]; then
+          INGRESS_CONTROLLER_TYPE="aws-alb"
+        elif [[ "$PROFILE_NAME" == "staging" ]]; then
+          INGRESS_CONTROLLER_TYPE="nginx"
+        else
+          echo "❌ Error: Unsupported cluster-name value: $PROFILE_NAME" >&2
+          exit 1
+        fi
+        cat \<< EOF > /tmp/environment-profile
+        deployment:
+          canary:
+            traffic:
+              ingressControllerType: $INGRESS_CONTROLLER_TYPE
+        EOF
+
   - when:
       condition: << parameters.checkout >>
       steps:
@@ -124,14 +154,9 @@ steps:
   - run:
       name: Detect old-school Helm version & chart name
       environment:
-        HELM_RELEASE_NAME: << parameters.release-name >>
-        HELM_NAMESPACE: << parameters.namespace >>
+        NUBE_RELEASE_NAME: << parameters.release-name >>
+        NUBE_NAMESPACE: << parameters.namespace >>
         HELM_DETECTION_DIR: /tmp/helm-detection
-      description: |
-        Script to detect which Helm version was used to create infrastructure. Usage: Set the following environment variables:
-          HELM_RELEASE_NAME - The release name to check
-          HELM_NAMESPACE - The namespace to check
-          HELM_DETECTION_DIR - Directory to store detection results
       command: <<include(scripts/detect_helm_version.sh)>>
 
   - run:
@@ -157,7 +182,7 @@ steps:
       chart: << parameters.chart >>
       args: <<#parameters.args>><<parameters.args>><</parameters.args>>
       mesh: << parameters.mesh >>
-      profile: << parameters.cluster-name >>
+      profile-file-name: /tmp/environment-profile
       output-file-name: /tmp/migration-phase/label
 
   - argo-deploy-application:
@@ -174,14 +199,20 @@ steps:
       rollout-status: << parameters.rollout-status >>
       rollout-status-timeout: << parameters.rollout-status-timeout >>
       project: << parameters.project >>
-      profile: << parameters.cluster-name >>
+      profile-file-name: /tmp/environment-profile
       old-school-chart-file: /tmp/helm-detection/chart_name
       migration-next-phase-file: /tmp/migration-phase/label
 
   - run:
       name: Triggers the ArgoCD migration workflow
       environment:
-        RELEASE_NAME: << parameters.release-name >>
+        ROLLOUT_NAME: << parameters.release-name >>
         NAMESPACE: << parameters.namespace >>
+        APPLICATION_NAME: << parameters.release-name >>
+        APPLICATION_NAMESPACE: argocd
+        ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
         CURRENT_MIGRATION_PHASE_FILE: /tmp/migration-phase/label
-      command: <<include(scripts/argo_migration_workflow.sh)>>
+        ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
+        FEEDBACK_TIMEOUT: << parameters.migration-feedback-timeout >>
+        FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
+      command: << include(scripts/argo_migration_workflow.sh) >>

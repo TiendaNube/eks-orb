@@ -17,7 +17,8 @@ parameters:
     type: string
   mesh:
     type: boolean
-  profile:
+  profile-file-name:
+    description: The name of the resulting file where attributes related to the environment will be stored
     type: string
   output-file-name:
     description: The name of the resulting file where the migration phase will be stored
@@ -45,7 +46,7 @@ steps:
           --set-string image.tag="<< parameters.image-tag >>" \
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --set-string profile="<< parameters.profile >>" \
+          --values << parameters.profile-file-name >> \
           --dry-run=server \
           << parameters.chart >> > $MIGRATION_PHASE_RAW_FILE
         echo "------------------------------------------------------"
