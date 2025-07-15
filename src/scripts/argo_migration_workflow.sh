@@ -70,6 +70,10 @@ function await_and_apply_feedback() {
       fi 
     }
 
+    # FIXME: The ArgoCD CLI has a limitation when connecting using the kubectl context:
+    # It requires the configured namespace to be the one where the target Application is created.
+    # This is necessary for CLI operations to work correctly on. 
+    # We can check in the future if we can use a different approach when upgrading ArgoCD.
     function with_argocd_cli() {
       set_argocd_cli
       "$@"
