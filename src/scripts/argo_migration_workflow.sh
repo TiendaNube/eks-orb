@@ -1,6 +1,11 @@
 #!/bin/bash
 
-eval "$ROLLOUT_STATUS_COMMON_SCRIPT"
+if [[ -z "${ROLLOUT_STATUS_COMMON_SCRIPT:-}" ]]; then
+  echo "Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty" >&2
+  exit 2
+fi
+
+source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
 
 # Colors for output
 RED='\033[0;31m'
@@ -39,7 +44,7 @@ await_and_apply_feedback() {
   handle_feedback_decision() {
 
     delete_annotation() {
-      kubectl annotate application -n "${namespace}" "${application_name}" "${annotation_key}-" --overwrite
+      kubectl annotate applications -n "${namespace}" "${application_name}" "${annotation_key}-" --overwrite
       if [ $? -ne 0 ]; then
         echo -e "${RED}❌ Failed to delete annotation ${annotation_key}${NC}"
         exit 1
@@ -69,32 +74,38 @@ await_and_apply_feedback() {
       fi 
     }
 
-    set_next_phase() {
+    with_argocd_cli() {
       set_argocd_cli
-      argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride="${next_phase}"
+      "$@"
+      local result=$?
+      unset_argocd_cli
+      if [ $result -ne 0 ]; then
+        return $result
+      fi
+      # FIXME: Allow some time for the change to propagate. We should query the Application status.
+      sleep 15
+    }
+
+    set_next_phase() {
+      with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride="${next_phase}"
       if [ $? -ne 0 ]; then
         echo -e "${RED}❌ Failed to set next phase to '${next_phase}'${NC}"
         exit 1
       fi
-      unset_argocd_cli
-      sleep 15  # FIXME: Allow some time for the change to propagate. We should query the Application status.
       echo -e "${GREEN}✅ Next phase set to '${next_phase}'${NC}"
     }
 
     rollback_migration() {
-      set_argocd_cli
-      argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride=safe
+      with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride=safe
       if [ $? -ne 0 ]; then
         echo -e "${RED}❌ Failed to rollback migration to safe phase${NC}"
         exit 1
       fi
-      unset_argocd_cli
-      sleep 15  # FIXME: Allow some time for the change to propagate. We should query the Application status.
       echo -e "${GREEN}✅ Migration rolled back to safe phase${NC}"
     }
 
     while true; do
-      status=$(kubectl get application -n "${namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${annotation_key//./\\.}}" 2>/dev/null)
+      status=$(kubectl get applications -n "${namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${annotation_key//./\\.}}" 2>/dev/null)
       if [ $? -ne 0 ]; then
         sleep $feedback_check_interval
         continue
@@ -110,13 +121,14 @@ await_and_apply_feedback() {
           delete_annotation
           set_next_phase
           exec_rollout_status  
-          exit 0
+          exit $?
           ;;
         "rollback")
           echo -e "${CYAN}⚠️ User feedback is to ROLLBACK deployment${NC}"
           delete_annotation
           rollback_migration
           exec_rollout_status
+          # We want to exit with an error code to indicate rollback
           exit 1
           ;;
         *)
@@ -157,9 +169,9 @@ await_and_apply_feedback() {
 exec_migration_workflow() {
   local application_name namespace rollout_name migration_phase_file_name
 
-  application_name=$(eval echo "${APPLICATION_NAME}")
-  namespace=$(eval echo "${NAMESPACE}")
-  rollout_name=$(eval echo "${ROLLOUT_NAME}")
+  application_name="${APPLICATION_NAME}"
+  namespace="${NAMESPACE}"
+  rollout_name="${ROLLOUT_NAME}"
   migration_phase_file_name="${CURRENT_MIGRATION_PHASE_FILE}"
   application_namespace=${APPLICATION_NAMESPACE:-argocd}
 
@@ -216,7 +228,11 @@ exec_migration_workflow() {
 
   # Iterate through remaining phases
   for ((i=start_index+1; i<${#phases[@]}; i++)); do
-    await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name" || exit 1
+    await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name"
+    if [ $? -ne 0 ]; then
+      echo -e "${RED}❌ Migration workflow aborted due to rollback or error.${NC}"
+      exit 1
+    fi
   done
 
   echo -e "${GREEN}🎉 Migration workflow completed successfully!${NC}"

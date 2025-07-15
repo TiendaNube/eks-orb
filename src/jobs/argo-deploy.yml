@@ -89,7 +89,7 @@ parameters:
     description: >
       The maximum time to wait for user feedback during the ArgoCD migration workflow (e.g. 1s, 2m, 3h).
       Must be a floating point number with an optional suffix: 's' for seconds (the default), 'm' for minutes, 'h' for hours or 'd' for days.
-      A duration of 0 (the default) disables the associated timeout, in order to wait until the rollout reaches a final state.
+      A duration of 0 (the default) disables the associated timeout, in order to wait until the migration finishes.
     type: string
     default: '0'
 
@@ -115,6 +115,14 @@ steps:
             traffic:
               ingressControllerType: $INGRESS_CONTROLLER_TYPE
         EOF
+        echo "------------------------------------------------------"
+        echo "📝 Computing Environment Variables"
+        echo "------------------------------------------------------"
+        echo "export RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export ROLLOUT_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export APPLICATION_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
+
 
   - when:
       condition: << parameters.checkout >>
@@ -154,8 +162,6 @@ steps:
   - run:
       name: Detect old-school Helm version & chart name
       environment:
-        NUBE_RELEASE_NAME: << parameters.release-name >>
-        NUBE_NAMESPACE: << parameters.namespace >>
         HELM_DETECTION_DIR: /tmp/helm-detection
       command: <<include(scripts/detect_helm_version.sh)>>
 
@@ -206,9 +212,6 @@ steps:
   - run:
       name: Triggers the ArgoCD migration workflow
       environment:
-        ROLLOUT_NAME: << parameters.release-name >>
-        NAMESPACE: << parameters.namespace >>
-        APPLICATION_NAME: << parameters.release-name >>
         APPLICATION_NAMESPACE: argocd
         ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
         CURRENT_MIGRATION_PHASE_FILE: /tmp/migration-phase/label

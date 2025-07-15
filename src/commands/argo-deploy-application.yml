@@ -213,6 +213,4 @@ steps:
       condition: << parameters.rollout-status >>
       steps:
         - argo-rollout-status:
-            release-name: << parameters.release-name >>
-            namespace: << parameters.namespace >>
             timeout: << parameters.rollout-status-timeout >>

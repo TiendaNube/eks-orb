@@ -12,7 +12,11 @@
 #   - Exit code 0 if rollout is Healthy or Completed, or if timeout is reached
 #   - Exit code 1 if rollout is Degraded, Error, or Aborted
 #   - Exit code 2 for script errors
+if [[ -z "${COMMON_SCRIPT:-}" ]]; then
+  echo "Error: COMMON_SCRIPT is empty" >&2
+  exit 2
+fi
 
-eval "$COMMON_SCRIPT"
+source <(echo "$COMMON_SCRIPT")
 
 exec_rollout_status

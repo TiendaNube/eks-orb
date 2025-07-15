@@ -1,12 +1,6 @@
 description: Allows use the argo client to check the status of a rollout
 
 parameters:
-  release-name:
-    description: The name of the release to check the status
-    type: string
-  namespace:
-    description: The namespace to check the status of the release
-    type: string
   check-interval:
     description: Number of seconds to wait between status checks
     type: integer
@@ -20,8 +14,6 @@ steps:
   - run:
       name: Check Argo rollout status
       environment:
-        ROLLOUT_NAME: << parameters.release-name >>
-        NAMESPACE: << parameters.namespace >>
         ROLLOUT_STATUS_TIMEOUT: << parameters.timeout >>
         ROLLOUT_STATUS_CHECK_INTERVAL: << parameters.check-interval >>
         COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>

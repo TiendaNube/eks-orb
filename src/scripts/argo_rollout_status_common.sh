@@ -19,8 +19,8 @@ exec_rollout_status() {
   # Export variables so they are available in the environment of the subshell
   # executed by 'timeout'. This is necessary because 'timeout' runs the command
   # in a new bash process, and only exported variables are accessible there.
-  export rollout_name=$(eval echo "${ROLLOUT_NAME}")
-  export namespace=$(eval echo "${NAMESPACE}")
+  export rollout_name="${ROLLOUT_NAME}"
+  export namespace="${NAMESPACE}"
   export rollout_status_timeout="${ROLLOUT_STATUS_TIMEOUT:-1m}"
   export rollout_status_check_interval="${ROLLOUT_STATUS_CHECK_INTERVAL:-10}"
 
