@@ -30,7 +30,7 @@ NC='\033[0m' # No Color
 #   $2 - The namespace of the ArgoCD Application.
 #   $3 - The name of the ArgoCD Application.
 ############################################################
-await_and_apply_feedback() {
+function await_and_apply_feedback() {
 
   # Export variables so they are available in the environment of the subshell
   # executed by 'timeout'. This is necessary because 'timeout' runs the command
@@ -41,40 +41,36 @@ await_and_apply_feedback() {
   export annotation_key="${FEEDBACK_ANNOTATION_KEY:-migration.argocd.io/approval-next-phase}"
   export feedback_check_interval="${FEEDBACK_CHECK_INTERVAL:-10}"
 
-  handle_feedback_decision() {
+  function handle_feedback_decision() {
 
-    delete_annotation() {
-      kubectl annotate applications -n "${namespace}" "${application_name}" "${annotation_key}-" --overwrite
-      if [ $? -ne 0 ]; then
+    function delete_annotation() {
+      if ! kubectl annotate applications -n "${namespace}" "${application_name}" "${annotation_key}-" --overwrite; then
         echo -e "${RED}❌ Failed to delete annotation ${annotation_key}${NC}"
         exit 1
       fi
       echo -e "${CYAN}🗑️ Deleted annotation ${annotation_key} for future reuse${NC}"
     }
 
-    set_argocd_cli() {
-      kubectl config set-context --current --namespace="${namespace}"
-      if [ $? -ne 0 ]; then
+    function set_argocd_cli() {
+      if ! kubectl config set-context --current --namespace="${namespace}"; then
         echo -e "${RED}❌ Failed to set kubectl context to namespace '${namespace}'${NC}"
         exit 1
       fi
-      argocd login cd.argoproj.io --core
-      if [ $? -ne 0 ]; then
+      if ! argocd login cd.argoproj.io --core; then
         echo -e "${RED}❌ Failed to login to ArgoCD CLI in namespace '${namespace}'${NC}"
         exit 1
       fi
       echo -e "${GREEN}✅ ArgoCD CLI prepared for namespace '${namespace}'.${NC}"
     }
 
-    unset_argocd_cli() {
-      kubectl config set-context --current --namespace="default"
-      if [ $? -ne 0 ]; then
+    function unset_argocd_cli() {
+      if ! kubectl config set-context --current --namespace="default"; then
         echo -e "${RED}❌ Failed to reset kubectl context to default namespace.${NC}"
         exit 1
       fi 
     }
 
-    with_argocd_cli() {
+    function with_argocd_cli() {
       set_argocd_cli
       "$@"
       local result=$?
@@ -86,18 +82,16 @@ await_and_apply_feedback() {
       sleep 15
     }
 
-    set_next_phase() {
-      with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride="${next_phase}"
-      if [ $? -ne 0 ]; then
+    function set_next_phase() {
+      if ! with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride="${next_phase}"; then
         echo -e "${RED}❌ Failed to set next phase to '${next_phase}'${NC}"
         exit 1
       fi
       echo -e "${GREEN}✅ Next phase set to '${next_phase}'${NC}"
     }
 
-    rollback_migration() {
-      with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride=safe
-      if [ $? -ne 0 ]; then
+    function rollback_migration() {
+      if ! with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride=safe; then
         echo -e "${RED}❌ Failed to rollback migration to safe phase${NC}"
         exit 1
       fi
@@ -106,11 +100,11 @@ await_and_apply_feedback() {
 
     while true; do
       status=$(kubectl get applications -n "${namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${annotation_key//./\\.}}" 2>/dev/null)
-      if [ $? -ne 0 ]; then
+      if [[ $? -ne 0 ]]; then
         sleep $feedback_check_interval
         continue
       fi
-      if [ -z "$status" ]; then
+      if [[ -z "$status" ]]; then
         sleep $feedback_check_interval
         continue
       fi
@@ -166,7 +160,7 @@ await_and_apply_feedback() {
 ############################################################
 # exec_migration_workflow: Drives the migration workflow
 ############################################################
-exec_migration_workflow() {
+function exec_migration_workflow() {
   local application_name namespace rollout_name migration_phase_file_name
 
   application_name="${APPLICATION_NAME}"
@@ -175,7 +169,7 @@ exec_migration_workflow() {
   migration_phase_file_name="${CURRENT_MIGRATION_PHASE_FILE}"
   application_namespace=${APPLICATION_NAMESPACE:-argocd}
 
-  if [ -z "$application_name" ] || [ -z "$namespace" ] || [ -z "$rollout_name" ] || [ -z "$migration_phase_file_name" ]; then
+  if [[ -z "$application_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_name" ]] || [[ -z "$migration_phase_file_name" ]]; then
     echo -e "${RED}Error: Missing required variables for ArgoCD application migration.${NC}"
     echo -e "${RED}  application_name:        '${application_name}'${NC}"
     echo -e "${RED}  namespace:               '${namespace}'${NC}"
@@ -185,7 +179,7 @@ exec_migration_workflow() {
     exit 2
   fi
 
-  if [ ! -f "$migration_phase_file_name" ]; then
+  if [[ ! -f "$migration_phase_file_name" ]]; then
     echo -e "${RED}Error: Migration phase file '$migration_phase_file_name' not found.${NC}"
     exit 2
   fi
@@ -221,16 +215,15 @@ exec_migration_workflow() {
   done
 
   # Check if phase is valid
-  if [ "$start_index" -eq -1 ]; then
+  if [[ "$start_index" -eq -1 ]]; then
     echo -e "${RED}Unknown phase value in $migration_phase_file_name: $phase_value${NC}"
     exit 2
   fi
 
   # Iterate through remaining phases
   for ((i=start_index+1; i<${#phases[@]}; i++)); do
-    await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name"
-    if [ $? -ne 0 ]; then
-      echo -e "${RED}❌ Migration workflow aborted due to rollback or error.${NC}"
+    if ! await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name"; then
+      echo -e "${RED}❌ Migration workflow aborted due to feedback or error.${NC}"
       exit 1
     fi
   done

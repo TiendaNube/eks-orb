@@ -59,7 +59,7 @@ steps:
         # Extract the migration phase label (empty string if not found)
         MIGRATION_PHASE=$(yq "$YQ_EXPR" $MIGRATION_PHASE_RAW_FILE)
         # Default to "completed" if not found or is 'null'
-        if [ -n "$MIGRATION_PHASE" ] && [ "$MIGRATION_PHASE" != "null" ]; then
+        if [[ -n "$MIGRATION_PHASE" ]] && [[ "$MIGRATION_PHASE" != "null" ]]; then
           case "$MIGRATION_PHASE" in
             safe|initial|traffic|completed)
               echo "$MIGRATION_PHASE" > << parameters.output-file-name >>

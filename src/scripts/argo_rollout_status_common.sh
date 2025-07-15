@@ -14,7 +14,7 @@
 #   - Exit code 2 for script errors
 
 # Main entrypoint
-exec_rollout_status() {
+function exec_rollout_status() {
 
   # Export variables so they are available in the environment of the subshell
   # executed by 'timeout'. This is necessary because 'timeout' runs the command
@@ -25,7 +25,7 @@ exec_rollout_status() {
   export rollout_status_check_interval="${ROLLOUT_STATUS_CHECK_INTERVAL:-10}"
 
   # Check required variables
-  if [ -z "$rollout_name" ] || [ -z "$namespace" ]; then
+  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]]; then
     echo "Error: Missing required environment variables to check rollout status."
     echo "Please set the following environment variables:"
     echo "     ROLLOUT_NAME - The rollout name to check"
@@ -36,7 +36,7 @@ exec_rollout_status() {
   fi
 
   # Print result
-  print_rollout_status_result() {
+  function print_rollout_status_result() {
     local status="$1"
     local message="$2"
     echo "--------------------------------------------------------"
@@ -45,7 +45,7 @@ exec_rollout_status() {
   }
 
   # Main status check loop
-  check_rollout_status() {
+  function check_rollout_status() {
     local i=1
     while true; do
       echo "========================================================"
@@ -75,7 +75,7 @@ exec_rollout_status() {
   }
 
   # Print status header
-  print_header() {
+  function print_header() {
     echo "========================================================"
     echo "🔍 Checking Argo Rollout status for:"
     echo "   - Rollout: ${rollout_name}"

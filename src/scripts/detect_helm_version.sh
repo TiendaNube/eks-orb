@@ -19,14 +19,14 @@ VERSION_FILE="${DETECTION_DIR}/version"
 CHART_NAME_FILE="${DETECTION_DIR}/chart_name"
 
 # Setup dedicated directory for all temp files
-setup_temp_dir() {
+function setup_temp_dir() {
   mkdir -p "${DETECTION_DIR}"
   # Clean any previous detection files
   rm -f "${DETECTION_DIR}"/* 2>/dev/null || true
 }
 
 # Write detection results to files
-write_result() {
+function write_result() {
   local version="$1"
   local chart_name="$2"
   
@@ -35,7 +35,7 @@ write_result() {
 }
 
 # Function to detect Helm v3 releases
-detect_helmv3() {
+function detect_helmv3() {
   local release_name="$1"
   local namespace="$2"
   local chart_name=""
@@ -46,7 +46,7 @@ detect_helmv3() {
   HELM_V3_EXIT=$?
   set -e
 
-  if [ ${HELM_V3_EXIT} -eq 0 ]; then
+  if [[ ${HELM_V3_EXIT} -eq 0 ]]; then
     # Extract chart name with yq if available
     if command -v yq &>/dev/null; then
       echo "${HELM_V3_OUTPUT}" | grep -v '^WARNING:' > "${DETECTION_DIR}/helm_v3_history.yaml"
@@ -65,7 +65,7 @@ detect_helmv3() {
 }
 
 # Function to detect Helm v2 releases
-detect_helmv2() {
+function detect_helmv2() {
   local release_name="$1"
   local namespace="$2"
   local chart_name=""
@@ -76,7 +76,7 @@ detect_helmv2() {
   HELM_V2_EXIT=$?
   set -e
 
-  if [ ${HELM_V2_EXIT} -eq 0 ]; then
+  if [[ ${HELM_V2_EXIT} -eq 0 ]]; then
     # Extract chart name with yq if available
     if command -v yq &>/dev/null; then
       echo "${HELM_V2_OUTPUT}" | grep -v '^WARNING:' > "${DETECTION_DIR}/helm_v2_history.yaml"
@@ -95,7 +95,7 @@ detect_helmv2() {
 }
 
 # Print detection results
-print_results() {
+function print_results() {
   local version="$1"
   local chart="$2"
   local message="$3"
@@ -107,7 +107,7 @@ print_results() {
 }
 
 # Main detection function
-detect_helm_version() {
+function detect_helm_version() {
   local release_name="$1"
   local namespace="$2"
 
@@ -126,7 +126,7 @@ detect_helm_version() {
   
   # Check return code from detect_helmv3
   local v3_result=$?
-  if [ ${v3_result} -eq 2 ]; then
+  if [[ ${v3_result} -eq 2 ]]; then
     # Error occurred with Helm v3 check that wasn't "not found"
     echo "❌ Error occurred checking Helm v3"
     return 1  # Exit with error
@@ -143,7 +143,7 @@ detect_helm_version() {
   
   # Check return code from detect_helmv2
   local v2_result=$?
-  if [ ${v2_result} -eq 2 ]; then
+  if [[ ${v2_result} -eq 2 ]]; then
     # Error occurred with Helm v2 check that wasn't "not found"
     echo "❌ Error occurred checking Helm v2"
     return 1  # Exit with error
@@ -156,12 +156,12 @@ detect_helm_version() {
   return 0
 }
 
-main() {
+function main() {
   local release_name="${RELEASE_NAME}"
   local namespace="${NAMESPACE}"
 
   # Check if we have the required environment variables
-  if [ -z "$release_name" ] || [ -z "$namespace" ]; then
+  if [[ -z "$release_name" ]] || [[ -z "$namespace" ]]; then
     echo "Error: Missing required environment variables"
     echo "Please set the following environment variables:"
     echo "     RELEASE_NAME - The release name to check"
