@@ -63,10 +63,6 @@ parameters:
       This can only be used for resource types that are valid for usage with `kubectl rollout` subcommands.
     type: boolean
     default: true
-  rollout-status-watch:
-    description: Whether to watch the status of the latest rollout until it's done.
-    type: boolean
-    default: true
   rollout-status-timeout:
     description: >
       The length of time to wait before ending the watch of Argo Rollout (e.g. 1s, 2m, 3h)
@@ -88,31 +84,45 @@ parameters:
     description: ArgoCD project name
     type: string
     default: tiendanube
+  # New parameters for ArgoCD migration workflow
+  migration-feedback-timeout:
+    description: >
+      The maximum time to wait for user feedback during the ArgoCD migration workflow (e.g. 1s, 2m, 3h).
+      Must be a floating point number with an optional suffix: 's' for seconds (the default), 'm' for minutes, 'h' for hours or 'd' for days.
+      A duration of 0 (the default) disables the associated timeout, in order to wait until the migration finishes.
+    type: string
+    default: '0'
 
 steps:
   - run:
-      name: Setup Environment Variables
-      description: Define environment variables to share between steps
+      name: Computing Environment Profile
       command: |
+        PROFILE_NAME=<< parameters.cluster-name >>
         echo "------------------------------------------------------"
-        ARGO_PARAMETERS_DIR=/tmp/argo-parameters
-        mkdir -p "$ARGO_PARAMETERS_DIR"
-        # Clean any previous files
-        rm -f "$ARGO_PARAMETERS_DIR"/* 2>/dev/null || true
-        echo "export ARGO_PARAMETERS_DIR=$ARGO_PARAMETERS_DIR" >> $BASH_ENV
-        echo "export ARGO_PARAMETERS_FILE=$ARGO_PARAMETERS_DIR/parameters.yaml" >> $BASH_ENV
-        echo "📋 Argo parameters directory: $ARGO_PARAMETERS_DIR"
+        echo "📝 Computing Environment Profile: $PROFILE_NAME"
         echo "------------------------------------------------------"
-        HELM_DETECTION_DIR=/tmp/helm-detection
-        mkdir -p "$HELM_DETECTION_DIR"
-        # Clean any previous files
-        rm -f "$HELM_DETECTION_DIR"/* 2>/dev/null || true
-        echo "export HELM_DETECTION_DIR=$HELM_DETECTION_DIR" >> $BASH_ENV
-        echo "export HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name" >> $BASH_ENV
-        echo "📋 Helm detection directory: $HELM_DETECTION_DIR"
+        if [[ "$PROFILE_NAME" == "production" ]]; then
+          INGRESS_CONTROLLER_TYPE="aws-alb"
+        elif [[ "$PROFILE_NAME" == "staging" ]]; then
+          INGRESS_CONTROLLER_TYPE="nginx"
+        else
+          echo "❌ Error: Unsupported cluster-name value: $PROFILE_NAME" >&2
+          exit 1
+        fi
+        cat \<< EOF > /tmp/environment-profile
+        deployment:
+          canary:
+            traffic:
+              ingressControllerType: $INGRESS_CONTROLLER_TYPE
+        EOF
         echo "------------------------------------------------------"
-        echo "export HELM_RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
-        echo "export HELM_NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
+        echo "📝 Computing Environment Variables"
+        echo "------------------------------------------------------"
+        echo "export RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export ROLLOUT_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export APPLICATION_NAME=<< parameters.release-name >>" >> $BASH_ENV
+        echo "export NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
+
 
   - when:
       condition: << parameters.checkout >>
@@ -150,223 +160,62 @@ steps:
               helmv3 repo update
 
   - run:
-      name: Detect Helm version
-      description: |
-        Script to detect which Helm version was used to create infrastructure. Usage: Set the following environment variables:
-          HELM_RELEASE_NAME - The release name to check
-          HELM_NAMESPACE - The namespace to check
-          HELM_DETECTION_DIR - Directory to store detection results
+      name: Detect old-school Helm version & chart name
+      environment:
+        HELM_DETECTION_DIR: /tmp/helm-detection
       command: <<include(scripts/detect_helm_version.sh)>>
 
   - run:
-      name: Validate previous Helm chart name
+      name: Validate old-school Helm chart name
       command: |
+        HELM_DETECTION_DIR=/tmp/helm-detection
+        HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name
         # Validate that previous_chart_name can only be microservices-v6 or empty
-        previous_chart_name=$(cat ${HELM_DETECTION_CHART_NAME_FILE})
+        previous_chart_name=$(cat $HELM_DETECTION_CHART_NAME_FILE)
         if [ -n "$previous_chart_name" ] && [ "$previous_chart_name" != "microservices-v6" ]; then
           echo "❌ Error: previous_chart_name must be 'microservices-v6' or empty"
           exit 1
         fi
         echo "------------------------------------------------------"
-        echo "📝 Previous chart name: $previous_chart_name"
+        echo "📝 Old-school chart name: $previous_chart_name"
         echo "------------------------------------------------------"
 
-  - run:
-      name: Extract migration-phase label from Rollout
-      command: |
-        # Define the migration phase label key
-        export MIGRATION_PHASE_LABEL="canary.tiendanube.com/migration-phase"
-        # Render Helm chart to a temporary file
-        helmv3 template \
-          << parameters.release-name >> \
-          --values << parameters.values-file >> \
-          --namespace << parameters.namespace >> \
-          --set-string image.tag="<< parameters.image-tag >>" \
-          --set-string previousChartName="$(cat ${HELM_DETECTION_CHART_NAME_FILE})" \
-          --set mesh=<< parameters.mesh >> \
-          <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --dry-run=server \
-          << parameters.chart >> > /tmp/rendered.yaml
-        echo "------------------------------------------------------"
-        echo "📄 Rendered YAML file content:"
-        echo "------------------------------------------------------"
-        cat /tmp/rendered.yaml
-        echo "------------------------------------------------------"
-        # Define the yq expression for extracting the migration phase label
-        YQ_EXPR='select(.kind == "Rollout") | .metadata.labels["'"$MIGRATION_PHASE_LABEL"'"]'
-        # Extract the migration phase label (empty string if not found)
-        MIGRATION_PHASE=$(yq "$YQ_EXPR" /tmp/rendered.yaml)
-        # Default to "completed" if not found or is 'null'
-        if [ -n "$MIGRATION_PHASE" ] && [ "$MIGRATION_PHASE" != "null" ]; then
-          case "$MIGRATION_PHASE" in
-            initial|traffic|completed)
-              echo "$MIGRATION_PHASE" > /tmp/migration-phase-label
-              ;;
-            *)
-              echo "❌ Error: MIGRATION_PHASE must be one of: initial, traffic, completed"
-              echo "🔍 Current MIGRATION_PHASE value: $MIGRATION_PHASE"
-              exit 1
-              ;;
-          esac
-        else
-          echo "completed" > /tmp/migration-phase-label
-        fi
-        echo "------------------------------------------------------"
-        echo "🏷️  Migration phase label value: $(cat /tmp/migration-phase-label)"
-        echo "------------------------------------------------------"
-
-  - run:
-      name: Get ArgoCD Application parameters from Helm chart
-      command: |
-        PARAMETERS_CHART_DIR=${ARGO_PARAMETERS_DIR}/parameter-chart
-        # Create directory structure for the chart
-        mkdir -p ${PARAMETERS_CHART_DIR}/templates
-        # Create Chart.yaml
-        cat \<< EOF > ${PARAMETERS_CHART_DIR}/Chart.yaml
-        apiVersion: v2
-        name: parameter-chart
-        description: Chart to visualize parameters
-        type: application
-        version: 0.1.0
-        appVersion: "1.0.0"
-        EOF
-        # Create empty values.yaml
-        echo "# Default values" > ${PARAMETERS_CHART_DIR}/values.yaml
-        # Create template that will just output parameters
-        cat \<< 'EOF' > ${PARAMETERS_CHART_DIR}/templates/parameters.yaml
-        {{- define "formatValue" -}}
-        {{- $value := . -}}
-        {{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
-        value: {{ $value }}
-        {{- else }}
-        value: {{ $value | quote }}
-        forceString: true
-        {{- end }}
-        {{- end -}}
-        {{- define "flatten" -}}
-        {{- $root := index . 0 -}}
-        {{- $prefix := index . 1 -}}
-        {{- range $k, $v := $root }}
-        {{- $name := "" -}}
-        {{- if eq $prefix "" -}}
-        {{- $name = $k -}}
-        {{- else -}}
-        {{- $name = printf "%s.%s" $prefix ($k | replace "." "\\.")  -}}
-        {{- end -}}
-        {{- if kindIs "map" $v }}
-        {{- include "flatten" (list $v $name) }}
-        {{- else if kindIs "slice" $v }}
-        {{- range $i, $item := $v }}
-        - name: {{ $name }}[{{ $i }}]
-        {{- include "formatValue" $item | nindent 2 }}
-        {{- end }}
-        {{- else }}
-        - name: {{ $name }}
-        {{- include "formatValue" $v | nindent 2 }}
-        {{- end }}
-        {{- end }}
-        {{- end }}
-        parameters:
-        {{- include "flatten" (list .Values "") | nindent 2 -}}
-        EOF
-        ARGO_PARAMETERS_RAW_FILE="${ARGO_PARAMETERS_DIR}/raw-parameters.yaml"
-        # Generate template output with all values
-        helmv3 template \
-          parameter-chart \
-          --set-string image.tag="<< parameters.image-tag >>" \
-          --set mesh=<< parameters.mesh >> \
-          <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --set-string previousChartName="$(cat ${HELM_DETECTION_CHART_NAME_FILE})" \
-          --set-string canaryMigrationPhaseOverride="$(cat /tmp/migration-phase-label)" \
-          "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
-        echo "------------------------------------------------------"
-        echo "📊 Parameters:"
-        echo "------------------------------------------------------"
-        # Extract only the parameters section onwards, skipping warnings
-        sed -n '/^parameters:/,$p' "$ARGO_PARAMETERS_RAW_FILE" > "${ARGO_PARAMETERS_FILE}"
-        cat "${ARGO_PARAMETERS_FILE}"
-        echo "------------------------------------------------------"
-
-  - run:
-      name: Create ArgoCD Application manifest
-      command: |
-        VALUES=$(cat << parameters.values-file >>)
-        VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
-        PARAMETERS=$(cat "${ARGO_PARAMETERS_FILE}")
-        PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
-        cat \<< EOF > /tmp/argocd-app-values.yaml
-        argocd:
-          namespace: argocd
-
-        destination:
-          namespace: << parameters.namespace >>
-          server: << parameters.destination-server >>
-
-        source:
-          path: microservices-v8
-          repoURL: https://github.com/TiendaNube/helm-charts
-          targetRevision: HEAD
-          helm:
-            releaseName: << parameters.release-name >>
-            $PARAMETERS_INDENTED
-            file: |-
-              $VALUES_INDENTED
-
-        project: << parameters.project >>
-
-        syncPolicy:
-          automated:
-            prune: true
-            selfHeal: true
-          syncOptions:
-            applyOutOfSyncOnly: true
-            createNamespace: true
-            pruneLast: true
-            validate: true
-            replace: false
-        EOF
-        cat /tmp/argocd-app-values.yaml
-
-  - annotation:
-      app-name: << parameters.release-name >>-app
+  - argo-migration-next-phase:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
       namespace: << parameters.namespace >>
-      resource-name: << parameters.resource-name >>
-      set-name: "kubernetes.io/previous-tag"
-      get-current-name: kubernetes\.io\/current-tag
+      image-tag: << parameters.image-tag >>
+      chart: << parameters.chart >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      profile-file-name: /tmp/environment-profile
+      output-file-name: /tmp/migration-phase/label
+
+  - argo-deploy-application:
+      release-name: << parameters.release-name >>
+      values-file: << parameters.values-file >>
+      namespace: << parameters.namespace >>
+      image-tag: << parameters.image-tag >>
+      args: <<#parameters.args>><<parameters.args>><</parameters.args>>
+      mesh: << parameters.mesh >>
+      destination-server: << parameters.destination-server >>
       set-path-annotation: << parameters.set-path-annotation >>
-      get-current-value: true
-      ignore-not-found: true
-
-  - annotation:
-      app-name: << parameters.release-name >>-app
-      namespace: << parameters.namespace >>
-      resource-name: << parameters.resource-name >>
-      set-name: "kubernetes.io/current-tag"
-      set-value: "<< parameters.image-tag >>"
-      ignore-not-found: true
+      s3-chart-repo: << parameters.s3-chart-repo >>
+      helm-app-status-timeout: << parameters.helm-app-status-timeout >>
+      rollout-status: << parameters.rollout-status >>
+      rollout-status-timeout: << parameters.rollout-status-timeout >>
+      project: << parameters.project >>
+      profile-file-name: /tmp/environment-profile
+      old-school-chart-file: /tmp/helm-detection/chart_name
+      migration-next-phase-file: /tmp/migration-phase/label
 
   - run:
-      name: Upsert Argo Application
-      command: |
-        helmv3 upgrade \
-          --create-namespace \
-          --install \
-          << parameters.release-name >>-app \
-          --values << parameters.values-file >> \
-          --values /tmp/argocd-app-values.yaml \
-          --namespace << parameters.namespace >> \
-          <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          << parameters.s3-chart-repo >>/argocd-apps
-
-  - helm-status:
-      release-name: << parameters.release-name >>-app
-      namespace: << parameters.namespace >>
-      timeout: << parameters.helm-app-status-timeout >>
-
-  - when:
-      condition: << parameters.rollout-status >>
-      steps:
-        - argo-rollout-status:
-            release-name: << parameters.release-name >>
-            namespace: << parameters.namespace >>
-            timeout: << parameters.rollout-status-timeout >>
+      name: Triggers the ArgoCD migration workflow
+      environment:
+        APPLICATION_NAMESPACE: argocd
+        ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
+        CURRENT_MIGRATION_PHASE_FILE: /tmp/migration-phase/label
+        ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
+        FEEDBACK_TIMEOUT: << parameters.migration-feedback-timeout >>
+        FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
+      command: << include(scripts/argo_migration_workflow.sh) >>

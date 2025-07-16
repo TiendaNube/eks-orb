@@ -1,0 +1,78 @@
+description: |
+  Compute the next migration phase.
+  The migration phase is written to << parameters.output-file-name >> for use in subsequent steps.
+
+parameters:
+  release-name:
+    type: string
+  values-file:
+    type: string
+  namespace:
+    type: string
+  image-tag:
+    type: string
+  chart:
+    type: string
+  args:
+    type: string
+  mesh:
+    type: boolean
+  profile-file-name:
+    description: The name of the resulting file where attributes related to the environment will be stored
+    type: string
+  output-file-name:
+    description: The name of the resulting file where the migration phase will be stored
+    type: string
+
+steps:
+  - run:
+      name: Compute migration phase
+      command: |
+        echo "------------------------------------------------------"
+        MIGRATION_PHASE_DIR=/tmp/migration-phase
+        mkdir -p "$MIGRATION_PHASE_DIR"
+        # Clean any previous files
+        rm -f "$MIGRATION_PHASE_DIR"/* 2>/dev/null || true
+        MIGRATION_PHASE_RAW_FILE=$MIGRATION_PHASE_DIR/rendered.yaml
+        echo "📄 Environment already set up for this step"
+        echo "------------------------------------------------------"
+        # Define the migration phase label key
+        export MIGRATION_PHASE_LABEL="canary.tiendanube.com/migration-phase"
+        # Render Helm chart to a temporary file
+        helmv3 template \
+          << parameters.release-name >> \
+          --values << parameters.values-file >> \
+          --namespace << parameters.namespace >> \
+          --set-string image.tag="<< parameters.image-tag >>" \
+          --set mesh=<< parameters.mesh >> \
+          <<#parameters.args>><<parameters.args>><</parameters.args>> \
+          --values << parameters.profile-file-name >> \
+          --dry-run=server \
+          << parameters.chart >> > $MIGRATION_PHASE_RAW_FILE
+        echo "------------------------------------------------------"
+        echo "📄 Computed YAML file:"
+        echo "------------------------------------------------------"
+        cat $MIGRATION_PHASE_RAW_FILE
+        echo "------------------------------------------------------"
+        # Define the yq expression for extracting the migration phase label
+        YQ_EXPR='select(.kind == "Rollout") | .metadata.labels["'"$MIGRATION_PHASE_LABEL"'"]'
+        # Extract the migration phase label (empty string if not found)
+        MIGRATION_PHASE=$(yq "$YQ_EXPR" $MIGRATION_PHASE_RAW_FILE)
+        # Default to "completed" if not found or is 'null'
+        if [[ -n "$MIGRATION_PHASE" ]] && [[ "$MIGRATION_PHASE" != "null" ]]; then
+          case "$MIGRATION_PHASE" in
+            safe|initial|traffic|completed)
+              echo "$MIGRATION_PHASE" > << parameters.output-file-name >>
+              ;;
+            *)
+              echo "❌ Error: MIGRATION_PHASE must be one of: safe, initial, traffic, completed"
+              echo "🔍 Current MIGRATION_PHASE value: $MIGRATION_PHASE"
+              exit 1
+              ;;
+          esac
+        else
+          echo "completed" > << parameters.output-file-name >>
+        fi
+        echo "------------------------------------------------------"
+        echo "🏷️  Migration phase: $(cat << parameters.output-file-name >>)"
+        echo "------------------------------------------------------"
