@@ -12,8 +12,27 @@ filter-staging: &filter-staging
 filter-production: &filter-production
   branches:
     only: /master/
+filter-release: &filter-release
+  branches:
+    ignore: /.*/
+  tags:
+    only: /^v[0-9]+\.[0-9]+\.[0-9]+$/
 
 workflows:
+  publish:
+    jobs:
+      # The orb must be re-packed for publishing, and saved to the workspace.
+      - orb-tools/pack:
+          org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
+          filters: *filter-release
+      - orb-tools/publish:
+          context: orbs-token
+          circleci_token: CIRCLE_TOKEN
+          orb_name: tiendanube/eks-orb
+          vcs_type: << pipeline.project.type >>
+          pub_type: production
+          requires: [orb-tools/pack]
+          filters: *filter-release
   production-argo-test-and-deploy:
     jobs:
       - production-argo-deploy-approval:
@@ -66,18 +85,6 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [production-argo-deploy-approval]
-          filters: *filter-production
-      # The orb must be re-packed for publishing, and saved to the workspace.
-      - orb-tools/pack:
-          org_id: "d131425b-ff6e-4b41-b10f-c4d8ca7adab1"
-          filters: *filter-production
-      - orb-tools/publish:
-          context: orbs-token
-          circleci_token: CIRCLE_TOKEN
-          orb_name: tiendanube/eks-orb
-          vcs_type: << pipeline.project.type >>
-          pub_type: production
-          requires: [orb-tools/pack, production-argo-deploy-approval]
           filters: *filter-production
   staging-argo-test-and-deploy:
     jobs:
