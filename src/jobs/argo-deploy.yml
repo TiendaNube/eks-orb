@@ -95,39 +95,28 @@ parameters:
 
 steps:
   - run:
-      name: Computing Environment Profile
+      name: Computing Environment Variables
       command: |
-        PROFILE_NAME=<< parameters.cluster-name >>
-        echo "------------------------------------------------------"
-        echo "📝 Computing Environment Profile: $PROFILE_NAME"
-        echo "------------------------------------------------------"
-        if [[ "$PROFILE_NAME" == "production" ]]; then
-          INGRESS_CONTROLLER_TYPE="aws-alb"
-        elif [[ "$PROFILE_NAME" == "staging" ]]; then
-          INGRESS_CONTROLLER_TYPE="nginx"
-        else
-          echo "❌ Error: Unsupported cluster-name value: $PROFILE_NAME" >&2
-          exit 1
-        fi
-        cat \<< EOF > /tmp/environment-profile
-        deployment:
-          canary:
-            traffic:
-              ingressControllerType: $INGRESS_CONTROLLER_TYPE
-        EOF
         echo "------------------------------------------------------"
         echo "📝 Computing Environment Variables"
         echo "------------------------------------------------------"
-        echo "export RELEASE_NAME=<< parameters.release-name >>" >> $BASH_ENV
-        echo "export ROLLOUT_NAME=<< parameters.release-name >>" >> $BASH_ENV
-        echo "export APPLICATION_NAME=<< parameters.release-name >>" >> $BASH_ENV
-        echo "export NAMESPACE=<< parameters.namespace >>" >> $BASH_ENV
-
+        echo "export PROFILE_NAME=<< parameters.cluster-name >>" | tee -a $BASH_ENV
+        echo "export RELEASE_NAME=<< parameters.release-name >>" | tee -a $BASH_ENV
+        echo "export ROLLOUT_NAME=<< parameters.release-name >>" | tee -a $BASH_ENV
+        echo "export APPLICATION_NAME=<< parameters.release-name >>" | tee -a $BASH_ENV
+        echo "export NAMESPACE=<< parameters.namespace >>" | tee -a $BASH_ENV
 
   - when:
       condition: << parameters.checkout >>
       steps:
         - checkout
+
+  - run:
+      name: Computing Environment Profile
+      environment:
+        VALUES_FILE_NAME: << parameters.values-file >>
+        OUTPUT_PROFILE_FILE_NAME: /tmp/environment-profile
+      command: << include(scripts/generate_environment_profile.sh) >>
 
   - update-kubeconfig-with-authenticator:
       cluster-name: << parameters.cluster-name >>
