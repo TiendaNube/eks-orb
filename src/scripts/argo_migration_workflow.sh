@@ -1,18 +1,24 @@
 #!/bin/bash
 
+# Colors for output
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[0;33m"
+BLUE="\033[0;34m"
+NC="\033[0m" # No Color
+
 if [[ -z "${ROLLOUT_STATUS_COMMON_SCRIPT:-}" ]]; then
-  echo "Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty" >&2
+  echo -e "${RED}Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty${NC}" >&2
   exit 2
 fi
 
 source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-CYAN='\033[0;36m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Check that exec_rollout_status function exists
+if ! declare -f exec_rollout_status > /dev/null; then
+  echo -e "${RED}Error: exec_rollout_status function is not defined after sourcing ROLLOUT_STATUS_COMMON_SCRIPT${NC}" >&2
+  exit 2
+fi
 
 ############################################################
 # await_and_apply_feedback:
@@ -48,7 +54,7 @@ function await_and_apply_feedback() {
         echo -e "${RED}❌ Failed to delete annotation ${annotation_key}${NC}"
         exit 1
       fi
-      echo -e "${CYAN}🗑️ Deleted annotation ${annotation_key} for future reuse${NC}"
+      echo -e "${YELLOW}🗑️ Deleted annotation ${annotation_key} for future reuse${NC}"
     }
 
     function set_argocd_cli() {
@@ -103,16 +109,18 @@ function await_and_apply_feedback() {
     }
 
     while true; do
-      status=$(kubectl get applications -n "${namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${annotation_key//./\\.}}" 2>/dev/null)
+      status=$(kubectl get applications -n "${namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${annotation_key//./\\.}}")
       if [[ $? -ne 0 ]]; then
+        echo -e "${RED}❌ Failed to get application status. Retrying in ${feedback_check_interval} seconds...${NC}"
         sleep $feedback_check_interval
         continue
       fi
       if [[ -z "$status" ]]; then
+        printf "."  # Print a dot on the same line for each wait iteration
         sleep $feedback_check_interval
         continue
       fi
-      echo "Found feedback annotation with value: $status"
+      echo -e "\n${BLUE}🔍 Found annotation '${annotation_key}' with value: ${status}${NC}"
       case "$status" in
         "proceed")
           echo -e "${GREEN}✅ User feedback is to PROCEED with deployment${NC}"
@@ -122,15 +130,14 @@ function await_and_apply_feedback() {
           exit $?
           ;;
         "rollback")
-          echo -e "${CYAN}⚠️ User feedback is to ROLLBACK deployment${NC}"
+          echo -e "${YELLOW}⚠️ User feedback is to ROLLBACK deployment${NC}"
           delete_annotation
           rollback_migration
-          exec_rollout_status
-          # We want to exit with an error code to indicate rollback
-          exit 1
+          exec_rollout_status # Ignore its exit code
+          exit 5 # We want to exit with an error code to indicate rollback
           ;;
         *)
-          echo -e "${CYAN}⚠️ Unknown feedback value: '$status', will retry in $feedback_check_interval seconds${NC}"
+          echo -e "${YELLOW}⚠️ Unknown feedback value: '$status', will retry in $feedback_check_interval seconds${NC}"
           sleep $feedback_check_interval
           ;;
       esac
@@ -150,13 +157,20 @@ function await_and_apply_feedback() {
 
   set +e
 
+  # To ensure colors are available in the subshell, we export them
+  export RED GREEN YELLOW BLUE NC
+
   timeout "${feedback_timeout}" bash -o pipefail -c "$(declare -f handle_feedback_decision exec_rollout_status); handle_feedback_decision"
   timeout_result=$?
 
   if [[ $timeout_result -eq 124 ]]; then
     echo -e "${RED}⏰ Timeout reached while waiting for user feedback.${NC}"
     return 1
-  else
+  elif [[ $timeout_result -eq 5 ]]; then
+    echo -e "${RED}❌ Migration workflow aborted due to rollback.${NC}"
+    return 5
+  elif [[ $timeout_result -ne 0 ]]; then
+    echo -e "${RED}❌ Migration workflow aborted due to error (exit code: $timeout_result).${NC}"
     return $timeout_result
   fi
 }
@@ -175,10 +189,10 @@ function exec_migration_workflow() {
 
   if [[ -z "$application_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_name" ]] || [[ -z "$migration_phase_file_name" ]]; then
     echo -e "${RED}Error: Missing required variables for ArgoCD application migration.${NC}"
-    echo -e "${RED}  application_name:        '${application_name}'${NC}"
-    echo -e "${RED}  namespace:               '${namespace}'${NC}"
-    echo -e "${RED}  rollout_name:            '${rollout_name}'${NC}"
-    echo -e "${RED}  migration_phase_file_name:'${migration_phase_file_name}'${NC}"
+    echo -e "${RED}  APPLICATION_NAME:        '${application_name}'${NC}"
+    echo -e "${RED}  NAMESPACE:               '${namespace}'${NC}"
+    echo -e "${RED}  ROLLOUT_NAME:            '${rollout_name}'${NC}"
+    echo -e "${RED}  MIGRATION_PHASE_FILE_NAME:'${migration_phase_file_name}'${NC}"
     echo -e "${RED}Please ensure all required environment variables are set and not empty.${NC}"
     exit 2
   fi
@@ -226,9 +240,10 @@ function exec_migration_workflow() {
 
   # Iterate through remaining phases
   for ((i=start_index+1; i<${#phases[@]}; i++)); do
-    if ! await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name"; then
-      echo -e "${RED}❌ Migration workflow aborted due to feedback or error.${NC}"
-      exit 1
+    local result=0
+    await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name" || result=$?
+    if [[ $result -ne 0 ]]; then
+      exit $result
     fi
   done
 

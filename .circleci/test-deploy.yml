@@ -48,7 +48,13 @@ workflows:
             - run:
                 name: Simulate fetching secrets from AWS Secrets Manager and update helm envs
                 command: |
-                  echo 'export secret_string="{\"DB_HOST_PRIMARY\":\"my-db.example.com\"}"' >> "$BASH_ENV"
+                  database_secret_string='{"DB_HOST_PRIMARY": "my-db.example.com", "password": "v877NHZ4$6N"}'
+                  export secret_string="$database_secret_string"
+                  echo "export secret_string='$database_secret_string'" >> "$BASH_ENV"
+                  password=$(echo $secret_string | jq -r .password)
+                  host=$(echo $secret_string | jq -r .DB_HOST_PRIMARY)
+                  database_url="postgresql://$username:$password@$host"
+                  echo "export DATABASE_URL='$database_url'" >> "$BASH_ENV"
           checkout: true
           cluster-name: production
           image-tag: 9c85b6b
@@ -63,6 +69,7 @@ workflows:
             --set env.SETTINGS_ENV=feature \
             --set env.SPRING_PROFILES_ACTIVE=feature \
             --set-string labels."tags\.datadoghq\.com/env"=feature \
+            --set-string env.DATABASE_URL=${DATABASE_URL} \
             --set env.BRANCH=${CIRCLE_BRANCH} \
             --set nameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set fullnameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \

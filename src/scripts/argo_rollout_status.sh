@@ -20,3 +20,4 @@ fi
 source <(echo "$COMMON_SCRIPT")
 
 exec_rollout_status
+exit $?
