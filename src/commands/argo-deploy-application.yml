@@ -70,11 +70,12 @@ steps:
         # Create template that will just output parameters
         cat \<< 'EOF' > $PARAMETERS_CHART_DIR/templates/parameters.yaml
         {{- define "formatValue" -}}
+        {{- $sentinelDollarEscaped := "::DOLLAR_ESCAPED::" -}}
         {{- $value := . -}}
         {{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
         value: {{ $value }}
         {{- else }}
-        value: {{ $value | quote }}
+        value: {{ $value | replace "$$" $sentinelDollarEscaped | replace "$" "$$" | replace $sentinelDollarEscaped "$$" | quote }}
         forceString: true
         {{- end }}
         {{- end -}}
