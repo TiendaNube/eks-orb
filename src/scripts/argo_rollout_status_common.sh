@@ -93,8 +93,8 @@ function exec_rollout_status() {
   timeout_result=$?
   if [[ $timeout_result -eq 124 ]]; then
     echo "⏰ Timeout reached while checking rollout status."
-    exit 0
+    return 0
   else
-    exit $timeout_result
+    return $timeout_result
   fi
 }
