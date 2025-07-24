@@ -8,7 +8,7 @@ BLUE="\033[0;34m"
 NC="\033[0m" # No Color
 
 if [[ -z "${ROLLOUT_STATUS_COMMON_SCRIPT:-}" ]]; then
-  echo -e "${RED}Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty${NC}" >&2
+  echo -e "${RED}Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty${NC}"
   exit 2
 fi
 
@@ -16,34 +16,114 @@ source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
 
 # Check that exec_rollout_status function exists
 if ! declare -f exec_rollout_status > /dev/null; then
-  echo -e "${RED}Error: exec_rollout_status function is not defined after sourcing ROLLOUT_STATUS_COMMON_SCRIPT${NC}" >&2
+  echo -e "${RED}Error: exec_rollout_status function is not defined after sourcing ROLLOUT_STATUS_COMMON_SCRIPT${NC}"
   exit 2
 fi
 
-############################################################
-# await_and_apply_feedback:
-# Waits for user feedback on the next migration phase via an ArgoCD Application annotation.
-#
-# This function:
-#   - Prompts the user (via instructions in the terminal) to add an annotation to the ArgoCD Application.
-#   - Periodically checks for the annotation value ("proceed" or "rollback").
-#   - If "proceed": deletes the annotation, advances the migration phase, and continues the workflow.
-#   - If "rollback": deletes the annotation, rolls back the migration, and exits with an error.
-#   - Retries until a valid value is found or a timeout occurs.
-#
+declare -A ARGOCD_URLS=(
+  [production]="https://prod-argocd.linkedstore.com/applications"
+  [staging]="https://argocd.nubestaging.com/applications/argocd"
+)
+
+# Returns the ArgoCD URL for a given profile and application name.
 # Arguments:
-#   $1 - The next migration phase to set if proceeding.
-#   $2 - The namespace of the ArgoCD Application.
-#   $3 - The name of the ArgoCD Application.
-############################################################
+#   $1 - Profile name (e.g., production, staging)
+#   $2 - Application name
+function get_argocd_url() {
+  local profile="$1"
+  local application_name="$2"
+  local base_url="${ARGOCD_URLS[$profile]}"
+  if [[ -n "$base_url" ]]; then
+    echo "${base_url}/${application_name}"
+  else
+    echo -e "${RED}Error: No ArgoCD URL configured for profile '$profile'. Available profiles: ${!ARGOCD_URLS[@]}${NC}"
+    exit 1
+  fi
+}
+
+# Prints a help message describing the migration phase.
+# Arguments:
+#   $1 - Color code for output
+#   $2 - Prefix for the message
+#   $3 - Phase name (safe, initial, traffic, completed)
+print_phase_help() {
+  local color="$1"
+  local prefix="$2"
+  local phase="$3"
+  [[ -z "$phase" ]] && { echo -e "${RED}❌ No phase specified.${NC}"; return 1; }
+
+  _print_colored() {
+    local color="$1"
+    shift
+    echo -e "${color}$*${NC}"
+  }
+
+  case "$phase" in
+    "safe")
+      _print_colored "$color" "$(cat <<EOF
+  🛡️  $prefix 'safe':
+    - Starting point with minimal changes.
+    - All existing resources become managed by the ArgoCD Application.
+    - Triggers a rolling update for the Deployment.
+    - Creates a Rollout resource (with zero replicas) and new Service definitions.
+    - Traffic still flows to the Deployment.
+    - Monitor DataDog dashboards to ensure no issues arise.
+EOF
+)"
+      ;;
+    "initial")
+      _print_colored "$color" "$(cat <<EOF
+  🚀 $prefix 'initial':
+    - The Rollout starts with replicas for the first time.
+    - Deployment and Rollout coexist with duplicated replicas.
+    - Traffic remains with the Deployment.
+    - You can test the new Rollout replicas using the header: "x-nube-local-canary: true" (NOT supported for NGINX Ingress).
+    - Validate that Rollout pods are healthy and ready for real traffic.
+EOF
+)"
+      ;;
+    "traffic")
+      _print_colored "$color" "$(cat <<EOF
+  🌐 $prefix 'traffic':
+    - Most critical step: traffic is routed to the Rollout pods.
+    - Deployment and its replicas are kept temporarily for fast rollback.
+    - Closely monitor the system to ensure proper traffic processing.
+EOF
+)"
+      ;;
+    "completed")
+      _print_colored "$color" "$(cat <<EOF
+  ✅ $prefix 'completed':
+    - Migration finalizes: Deployment and legacy Service are removed.
+    - Canary analysis runs for the first time to validate stability.
+    - Confirm the analysis completes successfully to finish the migration.
+EOF
+)"
+      ;;
+    *)
+      _print_colored "$RED" "❌ Unknown phase: $phase"
+      return 1
+      ;;
+  esac
+}
+
+# Waits for user feedback via an ArgoCD Application annotation and applies the result.
+# Arguments:
+#   $1 - Current phase
+#   $2 - Next phase (if proceeding)
+#   $3 - Namespace of the ArgoCD Application
+#   $4 - Name of the ArgoCD Application
+#   $5 - Profile name
 function await_and_apply_feedback() {
 
   # Export variables so they are available in the environment of the subshell
   # executed by 'timeout'. This is necessary because 'timeout' runs the command
   # in a new bash process, and only exported variables are accessible there.
-  export next_phase="$1"
-  export namespace="$2"
-  export application_name="$3"
+  export current_phase="$1"
+  export next_phase="$2"
+  export namespace="$3"
+  export application_name="$4"
+  export profile_name="$5"
   export annotation_key="${FEEDBACK_ANNOTATION_KEY:-migration.argocd.io/approval-next-phase}"
   export feedback_check_interval="${FEEDBACK_CHECK_INTERVAL:-10}"
 
@@ -125,8 +205,10 @@ function await_and_apply_feedback() {
         "proceed")
           echo -e "${GREEN}✅ User feedback is to PROCEED with deployment${NC}"
           delete_annotation
-          set_next_phase
-          exec_rollout_status  
+          if [[ -n "${next_phase}" ]]; then
+            set_next_phase
+            exec_rollout_status
+          fi
           exit $?
           ;;
         "rollback")
@@ -146,13 +228,25 @@ function await_and_apply_feedback() {
 
   local feedback_timeout="${FEEDBACK_TIMEOUT:-30m}"
 
+  local argocd_url
+  argocd_url=$(get_argocd_url "$profile_name" "$application_name")
+
+  echo "=================================================================================================================="
+  echo -e "${BLUE}🔗 You can view your stack in ArgoCD here:${NC} $argocd_url"
+  echo "=================================================================================================================="
+  print_phase_help "$YELLOW" "Current migration phase is" "$current_phase"
+  echo "=================================================================================================================="
+  if [[ "$current_phase" == "completed" && "$next_phase" == "" ]]; then
+    echo -e "${GREEN}✅ Migration is in the 'completed' phase."
+    echo -e "   Please confirm everything is stable, or request a rollback if needed. Awaiting final user confirmation before closing workflow."
+  else
+    print_phase_help "$GREEN" "Next step if you proceed is" "$next_phase"
+  fi
   echo "=================================================================================================================="
   echo -e "${BLUE}ℹ️  Please use the ArgoCD UI to add the following annotation to the application:${NC}"
   echo "    Key:   ${annotation_key}"
   echo "    Value: proceed   (to continue)  OR  rollback   (to rollback)"
-  echo "   (In the ArgoCD UI, go to the Application, click 'App Details', then 'Edit Metadata', and add the annotation.)"
-  echo "=================================================================================================================="
-  echo -e "${GREEN}📝 Next step if you proceed: ${next_phase}${NC}"
+  echo "   (In the ArgoCD UI, go to the Application, click 'Details', then 'Edit', and add the annotation.)"
   echo "=================================================================================================================="
 
   set +e
@@ -175,30 +269,29 @@ function await_and_apply_feedback() {
   fi
 }
 
-############################################################
-# exec_migration_workflow: Drives the migration workflow
-############################################################
+# Drives the migration workflow, iterating through each migration phase and waiting for user feedback at each step.
+# Reads required variables from the environment and profile file.
 function exec_migration_workflow() {
-  local application_name namespace rollout_name migration_phase_file_name
+  local application_name namespace rollout_name profile_file_name
 
   application_name="${APPLICATION_NAME}"
   namespace="${NAMESPACE}"
   rollout_name="${ROLLOUT_NAME}"
-  migration_phase_file_name="${CURRENT_MIGRATION_PHASE_FILE}"
+  profile_file_name="${PROFILE_FILE_NAME}"
   application_namespace=${APPLICATION_NAMESPACE:-argocd}
 
-  if [[ -z "$application_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_name" ]] || [[ -z "$migration_phase_file_name" ]]; then
+  if [[ -z "$application_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_name" ]] || [[ -z "$profile_file_name" ]]; then
     echo -e "${RED}Error: Missing required variables for ArgoCD application migration.${NC}"
     echo -e "${RED}  APPLICATION_NAME:        '${application_name}'${NC}"
     echo -e "${RED}  NAMESPACE:               '${namespace}'${NC}"
     echo -e "${RED}  ROLLOUT_NAME:            '${rollout_name}'${NC}"
-    echo -e "${RED}  MIGRATION_PHASE_FILE_NAME:'${migration_phase_file_name}'${NC}"
+    echo -e "${RED}  PROFILE_FILE_NAME:       '${profile_file_name}'${NC}"
     echo -e "${RED}Please ensure all required environment variables are set and not empty.${NC}"
     exit 2
   fi
 
-  if [[ ! -f "$migration_phase_file_name" ]]; then
-    echo -e "${RED}Error: Migration phase file '$migration_phase_file_name' not found.${NC}"
+  if [[ ! -f "$profile_file_name" ]]; then
+    echo -e "${RED}Error: Profile file '$profile_file_name' not found.${NC}"
     exit 2
   fi
 
@@ -207,12 +300,16 @@ function exec_migration_workflow() {
   echo "   - Application Name:        ${application_name}"
   echo "   - Namespace:               ${namespace}"
   echo "   - Rollout Name:            ${rollout_name}"
-  echo "   - Migration Phase File:    ${migration_phase_file_name}"
   echo "   - Application Namespace:   ${application_namespace}"
+  echo "   - Profile File:            ${profile_file_name}"
+  echo "   - Profile File Content:"
+  echo "--------------------------------------------------"
+  cat -n "${profile_file_name}"
+  echo "--------------------------------------------------"
   echo "=================================================================================================================="
 
   local phase_value
-  phase_value=$(cat "$migration_phase_file_name" | tr -d '\n')
+  phase_value=$(yq '.canaryMigrationPhaseOverride' "$profile_file_name" | tr -d '\n')  
 
   # If migration is already completed, skip the rest
   if [[ "$phase_value" == "completed" ]]; then
@@ -234,18 +331,36 @@ function exec_migration_workflow() {
 
   # Check if phase is valid
   if [[ "$start_index" -eq -1 ]]; then
-    echo -e "${RED}Unknown phase value in $migration_phase_file_name: $phase_value${NC}"
+    echo -e "${RED}Unknown phase value in $profile_file_name: $phase_value${NC}"
+    exit 2
+  fi
+
+  local profile_name
+  profile_name=$(yq '.profileName' "$profile_file_name" | tr -d '\n')
+
+  if [[ -z "$profile_name" ]]; then
+    echo -e "${RED}Error: Profile name is empty in $profile_file_name.${NC}"
     exit 2
   fi
 
   # Iterate through remaining phases
+  local current_phase="${phases[$start_index]}"
   for ((i=start_index+1; i<${#phases[@]}; i++)); do
     local result=0
-    await_and_apply_feedback "${phases[$i]}" "$application_namespace" "$application_name" || result=$?
+    local next_phase="${phases[$i]}"
+    await_and_apply_feedback "$current_phase" "$next_phase" "$application_namespace" "$application_name" "$profile_name" || result=$?
     if [[ $result -ne 0 ]]; then
       exit $result
     fi
+    current_phase="$next_phase"
   done
+
+  # Final feedback after 'completed' phase
+  local final_result=0
+  await_and_apply_feedback "completed" "" "$application_namespace" "$application_name" "$profile_name" || final_result=$?
+  if [[ $final_result -ne 0 ]]; then
+    exit $final_result
+  fi
 
   echo -e "${GREEN}🎉 Migration workflow completed successfully!${NC}"
 }

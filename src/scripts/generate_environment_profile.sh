@@ -61,6 +61,7 @@ function compute_ingress_controller_type() {
 compute_ingress_controller_type "$PROFILE_NAME" "$VALUES_FILE_NAME"
 
 cat <<EOF > "$OUTPUT_PROFILE_FILE_NAME"
+profileName: $PROFILE_NAME
 deployment:
   canary:
     traffic:

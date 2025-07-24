@@ -35,9 +35,6 @@ parameters:
   old-school-chart-file:
     description: The file name of the chart used before migrating
     type: string
-  migration-next-phase-file:
-    description: The file name that contains the migration phase to use
-    type: string
   # Parameters for ArgoCD Application migration
 
 steps:
@@ -47,7 +44,6 @@ steps:
         echo "------------------------------------------------------"
         ARGO_PARAMETERS_DIR=/tmp/argo-parameters
         PARAMETERS_CHART_DIR=$ARGO_PARAMETERS_DIR/parameter-chart
-        MIGRATION_NEXT_PHASE=$(cat << parameters.migration-next-phase-file >>)
         OLD_SCHOOL_CHART_NAME=$(cat << parameters.old-school-chart-file >>)
         mkdir -p "$ARGO_PARAMETERS_DIR"
         # Clean any previous files
@@ -114,7 +110,6 @@ steps:
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --set-string previousChartName="$OLD_SCHOOL_CHART_NAME" \
-          --set-string canaryMigrationPhaseOverride="$MIGRATION_NEXT_PHASE" \
           --values << parameters.profile-file-name >> \
           "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
