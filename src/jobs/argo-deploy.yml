@@ -169,7 +169,7 @@ steps:
         echo "📝 Old-school chart name: $previous_chart_name"
         echo "------------------------------------------------------"
 
-  - argo-migration-next-phase:
+  - argo-migration-current-phase:
       release-name: << parameters.release-name >>
       values-file: << parameters.values-file >>
       namespace: << parameters.namespace >>
@@ -178,7 +178,6 @@ steps:
       args: <<#parameters.args>><<parameters.args>><</parameters.args>>
       mesh: << parameters.mesh >>
       profile-file-name: /tmp/environment-profile
-      output-file-name: /tmp/migration-phase/label
 
   - argo-deploy-application:
       release-name: << parameters.release-name >>
@@ -196,15 +195,14 @@ steps:
       project: << parameters.project >>
       profile-file-name: /tmp/environment-profile
       old-school-chart-file: /tmp/helm-detection/chart_name
-      migration-next-phase-file: /tmp/migration-phase/label
 
   - run:
       name: Triggers the ArgoCD migration workflow
       environment:
         APPLICATION_NAMESPACE: argocd
         ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
-        CURRENT_MIGRATION_PHASE_FILE: /tmp/migration-phase/label
         ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
         FEEDBACK_TIMEOUT: << parameters.migration-feedback-timeout >>
         FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
+        PROFILE_FILE_NAME: /tmp/environment-profile
       command: << include(scripts/argo_migration_workflow.sh) >>
