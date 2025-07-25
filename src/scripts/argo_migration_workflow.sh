@@ -165,7 +165,7 @@ function await_and_apply_feedback() {
       "$@"
       local result=$?
       unset_argocd_cli
-      if [ $result -ne 0 ]; then
+      if [[ $result -ne 0 ]]; then
         return $result
       fi
       # FIXME: Allow some time for the change to propagate. We should query the Application status.
