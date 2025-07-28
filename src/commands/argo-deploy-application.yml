@@ -121,12 +121,17 @@ steps:
         echo "------------------------------------------------------"
 
   - run:
+      name: Add Github repository to ArgoCD
+      environment:
+        PROJECT: << parameters.project >>
+        ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
+      command: << include(scripts/argo_add_repository.sh) >>
+
+  - run:
       name: Create ArgoCD Application manifest
       command: |
         ARGO_PARAMETERS_DIR=/tmp/argo-parameters
         ARGO_APP_VALUE_FILE="$ARGO_PARAMETERS_DIR/argocd-app-values.yaml"
-        VALUES=$(cat << parameters.values-file >>)
-        VALUES_INDENTED=$(echo "$VALUES" | awk 'NR==1{print $0; next} {print "      "$0}')
         ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
         PARAMETERS=$(cat "$ARGO_PARAMETERS_FILE")
         PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
@@ -138,17 +143,25 @@ steps:
           namespace: << parameters.namespace >>
           server: << parameters.destination-server >>
 
-        source:
-          path: microservices-v8
-          repoURL: https://github.com/TiendaNube/helm-charts
-          targetRevision: master
-          helm:
-            releaseName: << parameters.release-name >>
-            $PARAMETERS_INDENTED
-            file: |-
-              $VALUES_INDENTED
+        sources:
+          - path: microservices-v8
+            name: main-helm-chart
+            repoURL: https://github.com/TiendaNube/helm-charts
+            targetRevision: master
+            helm:
+              valueFiles:
+                - "\$values/<< parameters.values-file >>"
+              $PARAMETERS_INDENTED
+          - repoURL: "${REPOSITORY_HTTP_URL}"
+            name: "${CIRCLE_PROJECT_REPONAME}"
+            targetRevision: "${CIRCLE_SHA1}"
+            ref: values
 
         project: << parameters.project >>
+
+        info:
+          - name: "github.repository"
+            value: "${REPOSITORY_HTTP_URL}"
 
         syncPolicy:
           automated:

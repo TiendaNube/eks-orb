@@ -1,25 +1,31 @@
 #!/bin/bash
 
-# Colors for output
+# --- Color codes for output ---
 RED="\033[0;31m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
 BLUE="\033[0;34m"
 NC="\033[0m" # No Color
 
+# --- Validate required environment scripts ---
 if [[ -z "${ROLLOUT_STATUS_COMMON_SCRIPT:-}" ]]; then
   echo -e "${RED}Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty${NC}"
   exit 2
 fi
-
-source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
-
-# Check that exec_rollout_status function exists
-if ! declare -f exec_rollout_status > /dev/null; then
-  echo -e "${RED}Error: exec_rollout_status function is not defined after sourcing ROLLOUT_STATUS_COMMON_SCRIPT${NC}"
+if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
+  echo -e "${RED}Error: ARGO_CLI_COMMON_SCRIPT is empty${NC}"
   exit 2
 fi
 
+# --- Validate required dependencies ---
+for cmd in yq kubectl timeout; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo -e "${RED}Error: $cmd is not installed or not in PATH.${NC}"
+    exit 2
+  fi
+done
+
+# --- ArgoCD URLs by profile ---
 declare -A ARGOCD_URLS=(
   [production]="https://prod-argocd.linkedstore.com/applications"
   [staging]="https://argocd.nubestaging.com/applications/argocd"
@@ -37,7 +43,7 @@ function get_argocd_url() {
     echo "${base_url}/${application_name}"
   else
     echo -e "${RED}Error: No ArgoCD URL configured for profile '$profile'. Available profiles: ${!ARGOCD_URLS[@]}${NC}"
-    exit 1
+    return 1
   fi
 }
 
@@ -46,13 +52,13 @@ function get_argocd_url() {
 #   $1 - Color code for output
 #   $2 - Prefix for the message
 #   $3 - Phase name (safe, initial, traffic, completed)
-print_phase_help() {
+function print_phase_help() {
   local color="$1"
   local prefix="$2"
   local phase="$3"
   [[ -z "$phase" ]] && { echo -e "${RED}❌ No phase specified.${NC}"; return 1; }
 
-  _print_colored() {
+  function _print_colored() {
     local color="$1"
     shift
     echo -e "${color}$*${NC}"
@@ -107,129 +113,119 @@ EOF
   esac
 }
 
-# Waits for user feedback via an ArgoCD Application annotation and applies the result.
-# Arguments:
-#   $1 - Current phase
-#   $2 - Next phase (if proceeding)
-#   $3 - Namespace of the ArgoCD Application
-#   $4 - Name of the ArgoCD Application
-#   $5 - Profile name
-function await_and_apply_feedback() {
+# --- Handles feedback loop for migration phase ---
+function handle_feedback_decision() {
 
-  # Export variables so they are available in the environment of the subshell
-  # executed by 'timeout'. This is necessary because 'timeout' runs the command
-  # in a new bash process, and only exported variables are accessible there.
-  export current_phase="$1"
-  export next_phase="$2"
-  export namespace="$3"
-  export application_name="$4"
-  export profile_name="$5"
-  export annotation_key="${FEEDBACK_ANNOTATION_KEY:-migration.argocd.io/approval-next-phase}"
-  export feedback_check_interval="${FEEDBACK_CHECK_INTERVAL:-10}"
+  source <(echo "$ARGO_CLI_COMMON_SCRIPT")
+  source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
 
-  function handle_feedback_decision() {
+  # Validate required functions
+  for fn in with_argocd_cli exec_rollout_status; do
+    if ! declare -f "$fn" > /dev/null; then
+      echo -e "${RED}❌ $fn function is not defined in subshell!${NC}"
+      exit 2
+    fi
+  done
 
-    function delete_annotation() {
-      if ! kubectl annotate applications -n "${namespace}" "${application_name}" "${annotation_key}-" --overwrite; then
-        echo -e "${RED}❌ Failed to delete annotation ${annotation_key}${NC}"
-        exit 1
-      fi
-      echo -e "${YELLOW}🗑️ Deleted annotation ${annotation_key} for future reuse${NC}"
-    }
-
-    function set_argocd_cli() {
-      if ! kubectl config set-context --current --namespace="${namespace}"; then
-        echo -e "${RED}❌ Failed to set kubectl context to namespace '${namespace}'${NC}"
-        exit 1
-      fi
-      if ! argocd login cd.argoproj.io --core; then
-        echo -e "${RED}❌ Failed to login to ArgoCD CLI in namespace '${namespace}'${NC}"
-        exit 1
-      fi
-      echo -e "${GREEN}✅ ArgoCD CLI prepared for namespace '${namespace}'.${NC}"
-    }
-
-    function unset_argocd_cli() {
-      if ! kubectl config set-context --current --namespace="default"; then
-        echo -e "${RED}❌ Failed to reset kubectl context to default namespace.${NC}"
-        exit 1
-      fi 
-    }
-
-    # FIXME: The ArgoCD CLI has a limitation when connecting using the kubectl context:
-    # It requires the configured namespace to be the one where the target Application is created.
-    # This is necessary for CLI operations to work correctly on. 
-    # We can check in the future if we can use a different approach when upgrading ArgoCD.
-    function with_argocd_cli() {
-      set_argocd_cli
-      "$@"
-      local result=$?
-      unset_argocd_cli
-      if [[ $result -ne 0 ]]; then
-        return $result
-      fi
-      # FIXME: Allow some time for the change to propagate. We should query the Application status.
-      sleep 15
-    }
-
-    function set_next_phase() {
-      if ! with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride="${next_phase}"; then
-        echo -e "${RED}❌ Failed to set next phase to '${next_phase}'${NC}"
-        exit 1
-      fi
-      echo -e "${GREEN}✅ Next phase set to '${next_phase}'${NC}"
-    }
-
-    function rollback_migration() {
-      if ! with_argocd_cli argocd app set "${application_name}" --helm-set canaryMigrationPhaseOverride=safe; then
-        echo -e "${RED}❌ Failed to rollback migration to safe phase${NC}"
-        exit 1
-      fi
-      echo -e "${GREEN}✅ Migration rolled back to safe phase${NC}"
-    }
-
-    while true; do
-      status=$(kubectl get applications -n "${namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${annotation_key//./\\.}}")
-      if [[ $? -ne 0 ]]; then
-        echo -e "${RED}❌ Failed to get application status. Retrying in ${feedback_check_interval} seconds...${NC}"
-        sleep $feedback_check_interval
-        continue
-      fi
-      if [[ -z "$status" ]]; then
-        printf "."  # Print a dot on the same line for each wait iteration
-        sleep $feedback_check_interval
-        continue
-      fi
-      echo -e "\n${BLUE}🔍 Found annotation '${annotation_key}' with value: ${status}${NC}"
-      case "$status" in
-        "proceed")
-          echo -e "${GREEN}✅ User feedback is to PROCEED with deployment${NC}"
-          delete_annotation
-          if [[ -n "${next_phase}" ]]; then
-            set_next_phase
-            exec_rollout_status
-          fi
-          exit $?
-          ;;
-        "rollback")
-          echo -e "${YELLOW}⚠️ User feedback is to ROLLBACK deployment${NC}"
-          delete_annotation
-          rollback_migration
-          exec_rollout_status # Ignore its exit code
-          exit 5 # We want to exit with an error code to indicate rollback
-          ;;
-        *)
-          echo -e "${YELLOW}⚠️ Unknown feedback value: '$status', will retry in $feedback_check_interval seconds${NC}"
-          sleep $feedback_check_interval
-          ;;
-      esac
-    done
+  function delete_annotation() {
+    if ! kubectl annotate applications -n "${application_namespace}" "${application_name}" "${feedback_annotation_key}-" --overwrite; then
+      echo -e "${RED}❌ Failed to delete annotation ${feedback_annotation_key}${NC}"
+      return 1
+    fi
+    echo -e "${YELLOW}🗑️ Deleted annotation ${feedback_annotation_key} for future reuse${NC}"
   }
 
-  local feedback_timeout="${FEEDBACK_TIMEOUT:-30m}"
+  function set_next_phase() {
+    if ! with_argocd_cli --namespace "${application_namespace}" -- argocd app set "${application_name}" --source-name main-helm-chart --helm-set canaryMigrationPhaseOverride="${next_phase}"; then
+      echo -e "${RED}❌ Failed to set next phase to '${next_phase}'${NC}"
+      return 1
+    fi
+    echo -e "${GREEN}✅ Next phase set to '${next_phase}'${NC}"
+  }
+
+  function rollback_migration() {
+    if ! with_argocd_cli --namespace "${application_namespace}" -- argocd app set "${application_name}" --source-name main-helm-chart --helm-set canaryMigrationPhaseOverride=safe; then
+      echo -e "${RED}❌ Failed to rollback migration to safe phase${NC}"
+      return 1
+    fi
+    echo -e "${GREEN}✅ Migration rolled back to safe phase${NC}"
+  }
+
+  function trigger_rollout_status() {
+    exec_rollout_status \
+      --rollout-name "${rollout_name}" \
+      --namespace "${namespace}" \
+      --timeout "${rollout_status_timeout}" \
+      --interval "${rollout_status_check_interval}"
+  }
+
+  while true; do
+    local status
+    status=$(kubectl get applications -n "${application_namespace}" "${application_name}" -o jsonpath="{.metadata.annotations.${feedback_annotation_key//./\\.}}")
+    if [[ $? -ne 0 ]]; then
+      echo -e "${RED}❌ Failed to get application status. Retrying in ${feedback_check_interval} seconds...${NC}"
+      sleep $feedback_check_interval
+      continue
+    fi
+    if [[ -z "$status" ]]; then
+      printf "."  # Print a dot on the same line for each wait iteration
+      sleep $feedback_check_interval
+      continue
+    fi
+    echo -e "\n${BLUE}🔍 Found annotation '${feedback_annotation_key}' with value: ${status}${NC}"
+    case "$status" in
+      "proceed")
+        echo -e "${GREEN}✅ User feedback is to PROCEED with deployment${NC}"
+        delete_annotation || exit $?
+        if [[ -n "${next_phase}" ]]; then
+          set_next_phase || exit $?
+          trigger_rollout_status || exit $?
+        fi
+        exit 0 # Exit with success code
+        ;;
+      "rollback")
+        echo -e "${YELLOW}⚠️ User feedback is to ROLLBACK deployment${NC}"
+        delete_annotation || exit $?
+        rollback_migration || exit $?
+        trigger_rollout_status || true
+        exit 5 # We want to exit with an error code to indicate rollback
+        ;;
+      *)
+        echo -e "${YELLOW}⚠️ Unknown feedback value: '$status', will retry in $feedback_check_interval seconds${NC}"
+        sleep $feedback_check_interval
+        ;;
+    esac
+  done
+}
+
+# Waits for user feedback via an ArgoCD Application annotation and applies the result.
+function await_and_apply_feedback() {
+
+  # Parse flags
+  current_phase="" next_phase="" namespace="" application_name="" application_namespace="" profile_name="" rollout_name=""
+  feedback_annotation_key="" feedback_check_interval="" feedback_timeout=""
+  rollout_status_timeout="" rollout_status_check_interval=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --current-phase) current_phase="$2"; shift 2 ;;
+      --next-phase) next_phase="$2"; shift 2 ;;
+      --namespace) namespace="$2"; shift 2 ;;
+      --application-name) application_name="$2"; shift 2 ;;
+      --application-namespace) application_namespace="$2"; shift 2 ;;
+      --rollout-status-timeout) rollout_status_timeout="$2"; shift 2 ;;
+      --rollout-status-check-interval) rollout_status_check_interval="$2"; shift 2 ;;
+      --rollout-name) rollout_name="$2"; shift 2 ;;
+      --profile-name) profile_name="$2"; shift 2 ;;
+      --feedback-annotation-key) feedback_annotation_key="$2"; shift 2 ;;
+      --feedback-check-interval) feedback_check_interval="$2"; shift 2 ;;
+      --feedback-timeout) feedback_timeout="$2"; shift 2 ;;
+      *) echo -e "${RED}Unknown flag: $1${NC}"; return 2 ;;
+    esac
+  done
 
   local argocd_url
-  argocd_url=$(get_argocd_url "$profile_name" "$application_name")
+  argocd_url=$(get_argocd_url "$profile_name" "$application_name") || exit $?
 
   echo "=================================================================================================================="
   echo -e "${BLUE}🔗 You can view your stack in ArgoCD here:${NC} $argocd_url"
@@ -244,18 +240,26 @@ function await_and_apply_feedback() {
   fi
   echo "=================================================================================================================="
   echo -e "${BLUE}ℹ️  Please use the ArgoCD UI to add the following annotation to the application:${NC}"
-  echo "    Key:   ${annotation_key}"
+  echo "    Key:   ${feedback_annotation_key}"
   echo "    Value: proceed   (to continue)  OR  rollback   (to rollback)"
   echo "   (In the ArgoCD UI, go to the Application, click 'Details', then 'Edit', and add the annotation.)"
   echo "=================================================================================================================="
 
   set +e
 
-  # To ensure colors are available in the subshell, we export them
+  # Export variables needed by the subshell invoked by timeout.
+  export current_phase next_phase namespace application_name application_namespace profile_name rollout_name
+  export feedback_annotation_key feedback_check_interval feedback_timeout
+  export rollout_status_timeout rollout_status_check_interval
   export RED GREEN YELLOW BLUE NC
+  export ARGO_CLI_COMMON_SCRIPT ROLLOUT_STATUS_COMMON_SCRIPT
 
-  timeout "${feedback_timeout}" bash -o pipefail -c "$(declare -f handle_feedback_decision exec_rollout_status); handle_feedback_decision"
-  timeout_result=$?
+  local timeout_result=0
+  timeout "${feedback_timeout}" bash -o pipefail -c "$(cat <<EOF
+  $(declare -f handle_feedback_decision)
+  handle_feedback_decision
+EOF
+)" || timeout_result=$?
 
   if [[ $timeout_result -eq 124 ]]; then
     echo -e "${RED}⏰ Timeout reached while waiting for user feedback.${NC}"
@@ -272,20 +276,35 @@ function await_and_apply_feedback() {
 # Drives the migration workflow, iterating through each migration phase and waiting for user feedback at each step.
 # Reads required variables from the environment and profile file.
 function exec_migration_workflow() {
-  local application_name namespace rollout_name profile_file_name
 
-  application_name="${APPLICATION_NAME}"
-  namespace="${NAMESPACE}"
-  rollout_name="${ROLLOUT_NAME}"
-  profile_file_name="${PROFILE_FILE_NAME}"
-  application_namespace=${APPLICATION_NAMESPACE:-argocd}
+  local application_name="${APPLICATION_NAME}"
+  local namespace="${NAMESPACE}"
+  local profile_file_name="${PROFILE_FILE_NAME}"
+  local application_namespace="${APPLICATION_NAMESPACE}"
 
-  if [[ -z "$application_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_name" ]] || [[ -z "$profile_file_name" ]]; then
-    echo -e "${RED}Error: Missing required variables for ArgoCD application migration.${NC}"
-    echo -e "${RED}  APPLICATION_NAME:        '${application_name}'${NC}"
-    echo -e "${RED}  NAMESPACE:               '${namespace}'${NC}"
-    echo -e "${RED}  ROLLOUT_NAME:            '${rollout_name}'${NC}"
-    echo -e "${RED}  PROFILE_FILE_NAME:       '${profile_file_name}'${NC}"
+  local feedback_annotation_key="${FEEDBACK_ANNOTATION_KEY}"
+  local feedback_check_interval="${FEEDBACK_CHECK_INTERVAL}"
+  local feedback_timeout="${FEEDBACK_TIMEOUT}"
+
+  local rollout_name="${ROLLOUT_NAME}"
+  local rollout_status_timeout="${ROLLOUT_STATUS_TIMEOUT}"
+  local rollout_status_check_interval="${ROLLOUT_STATUS_CHECK_INTERVAL}"
+
+  # Validate all required input parameters
+  if [[ -z "$application_name" || -z "$namespace" || -z "$profile_file_name" || -z "$application_namespace" || \
+        -z "$feedback_annotation_key" || -z "$feedback_check_interval" || -z "$feedback_timeout" || \
+        -z "$rollout_name" || -z "$rollout_status_timeout" || -z "$rollout_status_check_interval" ]]; then
+    echo -e "${RED}Error: One or more required input parameters are missing.${NC}"
+    echo -e "${RED}  APPLICATION_NAME:              '${application_name}'${NC}"
+    echo -e "${RED}  NAMESPACE:                     '${namespace}'${NC}"
+    echo -e "${RED}  PROFILE_FILE_NAME:             '${profile_file_name}'${NC}"
+    echo -e "${RED}  APPLICATION_NAMESPACE:         '${application_namespace}'${NC}"
+    echo -e "${RED}  FEEDBACK_ANNOTATION_KEY:       '${feedback_annotation_key}'${NC}"
+    echo -e "${RED}  FEEDBACK_CHECK_INTERVAL:       '${feedback_check_interval}'${NC}"
+    echo -e "${RED}  FEEDBACK_TIMEOUT:              '${feedback_timeout}'${NC}"
+    echo -e "${RED}  ROLLOUT_NAME:                  '${rollout_name}'${NC}"
+    echo -e "${RED}  ROLLOUT_STATUS_TIMEOUT:        '${rollout_status_timeout}'${NC}"
+    echo -e "${RED}  ROLLOUT_STATUS_CHECK_INTERVAL: '${rollout_status_check_interval}'${NC}"
     echo -e "${RED}Please ensure all required environment variables are set and not empty.${NC}"
     exit 2
   fi
@@ -297,11 +316,16 @@ function exec_migration_workflow() {
 
   echo "=================================================================================================================="
   echo -e "${BLUE}🔍 Migration Workflow Context:${NC}"
-  echo "   - Application Name:        ${application_name}"
-  echo "   - Namespace:               ${namespace}"
-  echo "   - Rollout Name:            ${rollout_name}"
-  echo "   - Application Namespace:   ${application_namespace}"
-  echo "   - Profile File:            ${profile_file_name}"
+  echo "   - Application Name:              ${application_name}"
+  echo "   - Namespace:                     ${namespace}"
+  echo "   - Rollout Name:                  ${rollout_name}"
+  echo "   - Application Namespace:         ${application_namespace}"
+  echo "   - Rollout Status Check Interval: ${rollout_status_check_interval} seconds"
+  echo "   - Rollout Status Timeout:        ${rollout_status_timeout}"
+  echo "   - Feedback Annotation Key:       ${feedback_annotation_key}"
+  echo "   - Feedback Check Interval:       ${feedback_check_interval} seconds"
+  echo "   - Feedback Timeout:              ${feedback_timeout}"
+  echo "   - Profile File:                  ${profile_file_name}"
   echo "   - Profile File Content:"
   echo "--------------------------------------------------"
   cat -n "${profile_file_name}"
@@ -346,21 +370,39 @@ function exec_migration_workflow() {
   # Iterate through remaining phases
   local current_phase="${phases[$start_index]}"
   for ((i=start_index+1; i<${#phases[@]}; i++)); do
-    local result=0
     local next_phase="${phases[$i]}"
-    await_and_apply_feedback "$current_phase" "$next_phase" "$application_namespace" "$application_name" "$profile_name" || result=$?
-    if [[ $result -ne 0 ]]; then
-      exit $result
-    fi
+
+    await_and_apply_feedback \
+      --current-phase "$current_phase" \
+      --next-phase "$next_phase" \
+      --application-namespace "$application_namespace" \
+      --namespace "$namespace" \
+      --application-name "$application_name" \
+      --profile-name "$profile_name" \
+      --rollout-name "$rollout_name" \
+      --rollout-status-timeout "$rollout_status_timeout" \
+      --rollout-status-check-interval "$rollout_status_check_interval" \
+      --feedback-annotation-key "$feedback_annotation_key" \
+      --feedback-check-interval "$feedback_check_interval" \
+      --feedback-timeout "$feedback_timeout" || exit $?
+    
     current_phase="$next_phase"
   done
 
   # Final feedback after 'completed' phase
-  local final_result=0
-  await_and_apply_feedback "completed" "" "$application_namespace" "$application_name" "$profile_name" || final_result=$?
-  if [[ $final_result -ne 0 ]]; then
-    exit $final_result
-  fi
+  await_and_apply_feedback \
+    --current-phase "completed" \
+    --next-phase "" \
+    --application-namespace "$application_namespace" \
+    --namespace "$namespace" \
+    --application-name "$application_name" \
+    --profile-name "$profile_name" \
+    --rollout-name "$rollout_name" \
+    --rollout-status-timeout "$rollout_status_timeout" \
+    --rollout-status-check-interval "$rollout_status_check_interval" \
+    --feedback-annotation-key "$feedback_annotation_key" \
+    --feedback-check-interval "$feedback_check_interval" \
+    --feedback-timeout "$feedback_timeout" || exit $?
 
   echo -e "${GREEN}🎉 Migration workflow completed successfully!${NC}"
 }
