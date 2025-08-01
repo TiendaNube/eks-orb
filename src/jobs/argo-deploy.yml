@@ -97,6 +97,7 @@ steps:
   - run:
       name: Computing Environment Variables
       command: |
+        REPOSITORY_HTTP_URL=$(echo "${CIRCLE_REPOSITORY_URL}" | sed -E 's#(git@|https://)([^/:]+)[:/]([^/]+)/([^.]+)(\.git)?#https://\2/\3/\4#')
         echo "------------------------------------------------------"
         echo "📝 Computing Environment Variables"
         echo "------------------------------------------------------"
@@ -105,6 +106,8 @@ steps:
         echo "export ROLLOUT_NAME=<< parameters.release-name >>" | tee -a $BASH_ENV
         echo "export APPLICATION_NAME=<< parameters.release-name >>" | tee -a $BASH_ENV
         echo "export NAMESPACE=<< parameters.namespace >>" | tee -a $BASH_ENV
+        echo "export APPLICATION_NAMESPACE=argocd" | tee -a $BASH_ENV
+        echo "export REPOSITORY_HTTP_URL=$REPOSITORY_HTTP_URL" | tee -a $BASH_ENV
 
   - when:
       condition: << parameters.checkout >>
@@ -129,6 +132,15 @@ steps:
         curl -Lo helm-v3.18.2-linux-amd64.tar.gz https://get.helm.sh/helm-v3.18.2-linux-amd64.tar.gz
         tar -zxvf helm-v3.18.2-linux-amd64.tar.gz && chmod +x ./linux-amd64/helm && sudo mv ./linux-amd64/helm /usr/local/bin/helmv3 && rm -rf ./linux-amd64 helm-v3.18.2-linux-amd64.tar.gz
         helmv3 version
+
+  - run:
+      name: Install ArgoCD CLI
+      command: |
+        cd /tmp
+        curl -LO https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+        chmod +x ./argocd-linux-amd64
+        sudo mv ./argocd-linux-amd64 /usr/local/bin/argocd
+        argocd version --client
 
   - run:
       name: Install Argo Rollouts Kubectl plugin
@@ -208,10 +220,12 @@ steps:
   - run:
       name: Triggers the ArgoCD migration workflow
       environment:
-        APPLICATION_NAMESPACE: argocd
         ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
         ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
+        ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
         FEEDBACK_TIMEOUT: << parameters.migration-feedback-timeout >>
         FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
+        FEEDBACK_CHECK_INTERVAL: 10
+        ROLLOUT_STATUS_CHECK_INTERVAL: 10
         PROFILE_FILE_NAME: /tmp/environment-profile
       command: << include(scripts/argo_migration_workflow.sh) >>

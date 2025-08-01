@@ -1,12 +1,14 @@
 #!/bin/bash
 
+# Colors for output
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+NC="\033[0m" # No Color
+
 # Script to check the status of an Argo Rollout.
 #
-# Usage: Set the following environment variables:
-#   ROLLOUT_NAME   - The rollout name to check
-#   NAMESPACE      - The namespace to check
-#   ROLLOUT_STATUS_TIMEOUT        - Timeout in seconds (default: 1m)
-#   ROLLOUT_STATUS_CHECK_INTERVAL - Interval between checks in seconds (default: 10)
+# Usage:
+#   ./argo_rollout_status_common.sh --rollout-name <name> --namespace <ns> --timeout <1m> --interval <10>
 #
 # Returns:
 #   - Exit code 0 if rollout is Healthy or Completed, or if timeout is reached
@@ -16,32 +18,38 @@
 # Main entrypoint
 function exec_rollout_status() {
 
-  # Export variables so they are available in the environment of the subshell
-  # executed by 'timeout'. This is necessary because 'timeout' runs the command
-  # in a new bash process, and only exported variables are accessible there.
-  export rollout_name="${ROLLOUT_NAME}"
-  export namespace="${NAMESPACE}"
-  export rollout_status_timeout="${ROLLOUT_STATUS_TIMEOUT:-1m}"
-  export rollout_status_check_interval="${ROLLOUT_STATUS_CHECK_INTERVAL:-10}"
+  local rollout_name="" namespace="" rollout_status_timeout="" rollout_status_check_interval=""
 
-  # Check required variables
-  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]]; then
-    echo "Error: Missing required environment variables to check rollout status."
-    echo "Please set the following environment variables:"
-    echo "     ROLLOUT_NAME - The rollout name to check"
-    echo "     NAMESPACE - The namespace to check"
-    echo "     ROLLOUT_STATUS_TIMEOUT - Timeout in seconds (default: 1m)"
-    echo "     ROLLOUT_STATUS_CHECK_INTERVAL - Interval between checks in seconds (default: 10)"
-    exit 2
+  # Parse flags
+  while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+      --rollout-name) rollout_name="$2"; shift 2 ;;
+      --namespace) namespace="$2"; shift 2 ;;
+      --timeout) rollout_status_timeout="$2"; shift 2 ;;
+      --interval) rollout_status_check_interval="$2"; shift 2 ;;
+      --) shift; break ;;
+      *) echo -e "${RED}Unknown flag: $1${NC}"; return 2 ;;
+    esac
+  done
+
+  # Check required flags
+  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_status_timeout" ]] || [[ -z "$rollout_status_check_interval" ]]; then
+    echo -e "${RED}Error: --rollout-name, --namespace, --timeout, and --interval are required.${NC}"
+    echo -e "Usage: $0 --rollout-name <name> --namespace <ns> --timeout <1m> --interval <10>"
+    return 2
   fi
 
   # Print result
   function print_rollout_status_result() {
     local status="$1"
     local message="$2"
-    echo "--------------------------------------------------------"
-    echo "📊 Result: ${message}"
-    echo "   - Status: ${status}"
+    local color="${RED}"
+    if [[ "$status" == "Healthy" || "$status" == "Completed" ]]; then
+      color="${GREEN}"
+    fi
+    echo -e "${color}--------------------------------------------------------"
+    echo -e "📊 Result: ${message}"
+    echo -e "   - Status: ${status}${NC}"
   }
 
   # Main status check loop
@@ -89,8 +97,16 @@ function exec_rollout_status() {
   
   print_header
 
-  timeout "${rollout_status_timeout}" bash -o pipefail -c "$(declare -f check_rollout_status print_rollout_status_result); check_rollout_status"
-  timeout_result=$?
+  # Export variables needed by the subshell invoked by timeout.
+  export rollout_name namespace rollout_status_timeout rollout_status_check_interval
+
+  local timeout_result=0
+  timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
+  $(declare -f check_rollout_status print_rollout_status_result)
+  check_rollout_status
+EOF
+)" || timeout_result=$?
+
   if [[ $timeout_result -eq 124 ]]; then
     echo "⏰ Timeout reached while checking rollout status."
     return 0
