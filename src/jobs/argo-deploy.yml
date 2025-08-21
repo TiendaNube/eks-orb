@@ -85,13 +85,18 @@ parameters:
     type: string
     default: tiendanube
   # New parameters for ArgoCD migration workflow
-  migration-feedback-timeout:
+  argocd-migration-feedback-timeout:
     description: >
       The maximum time to wait for user feedback during the ArgoCD migration workflow (e.g. 1s, 2m, 3h).
       Must be a floating point number with an optional suffix: 's' for seconds (the default), 'm' for minutes, 'h' for hours or 'd' for days.
       A duration of 0 (the default) disables the associated timeout, in order to wait until the migration finishes.
     type: string
     default: '0'
+  argocd-migration-workflow-enabled:
+    description: >
+      Enable the ArgoCD migration workflow.
+    type: boolean
+    default: true
 
 steps:
   - run:
@@ -217,15 +222,18 @@ steps:
       profile-file-name: /tmp/environment-profile
       old-school-chart-file: /tmp/helm-detection/chart_name
 
-  - run:
-      name: Triggers the ArgoCD migration workflow
-      environment:
-        ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
-        ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
-        ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
-        FEEDBACK_TIMEOUT: << parameters.migration-feedback-timeout >>
-        FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
-        FEEDBACK_CHECK_INTERVAL: 10
-        ROLLOUT_STATUS_CHECK_INTERVAL: 10
-        PROFILE_FILE_NAME: /tmp/environment-profile
-      command: << include(scripts/argo_migration_workflow.sh) >>
+  - when:
+      condition: << parameters.argocd-migration-workflow-enabled >>
+      steps:
+        - run:
+            name: Triggers the ArgoCD migration workflow
+            environment:
+              ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
+              ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
+              ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
+              FEEDBACK_TIMEOUT: << parameters.argocd-migration-feedback-timeout >>
+              FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
+              FEEDBACK_CHECK_INTERVAL: 10
+              ROLLOUT_STATUS_CHECK_INTERVAL: 10
+              PROFILE_FILE_NAME: /tmp/environment-profile
+            command: << include(scripts/argo_migration_workflow.sh) >>
