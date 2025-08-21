@@ -180,24 +180,6 @@ steps:
         cat $ARGO_APP_VALUE_FILE
         echo "------------------------------------------------------"
 
-  - annotation:
-      app-name: << parameters.release-name >>
-      namespace: << parameters.namespace >>
-      resource-name: rollout
-      set-name: "kubernetes.io/previous-tag"
-      get-current-name: kubernetes\.io\/current-tag
-      set-path-annotation: << parameters.set-path-annotation >>
-      get-current-value: true
-      ignore-not-found: true
-
-  - annotation:
-      app-name: << parameters.release-name >>
-      namespace: << parameters.namespace >>
-      resource-name: rollout
-      set-name: "kubernetes.io/current-tag"
-      set-value: "<< parameters.image-tag >>"
-      ignore-not-found: true
-
   - run:
       name: Upsert Argo Application
       command: |
