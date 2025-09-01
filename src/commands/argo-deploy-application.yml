@@ -67,11 +67,12 @@ steps:
         cat \<< 'EOF' > $PARAMETERS_CHART_DIR/templates/parameters.yaml
         {{- define "formatValue" -}}
         {{- $sentinelDollarEscaped := "::DOLLAR_ESCAPED::" -}}
+        {{- $sentinelNewlineEscaped := "::NEWLINE_ESCAPED::" -}}
         {{- $value := . -}}
         {{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
         value: {{ $value }}
         {{- else }}
-        value: {{ $value | replace "$$" $sentinelDollarEscaped | replace "$" "$$" | replace $sentinelDollarEscaped "$$" | quote }}
+        value: {{ $value | replace "$$" $sentinelDollarEscaped | replace "$" "$$" | replace $sentinelDollarEscaped "$$" | replace "\\n" $sentinelNewlineEscaped | quote }}
         forceString: true
         {{- end }}
         {{- end -}}
@@ -116,7 +117,7 @@ steps:
         echo "📊 Parameters:"
         echo "------------------------------------------------------"
         # Extract only the parameters section onwards, skipping warnings
-        sed -n '/^parameters:/,$p' "$ARGO_PARAMETERS_RAW_FILE" > "${ARGO_PARAMETERS_FILE}"
+        sed -n '/^parameters:/,$p' "$ARGO_PARAMETERS_RAW_FILE" | sed 's/::NEWLINE_ESCAPED::/\\\\\\\\n/g' > "${ARGO_PARAMETERS_FILE}"
         cat "${ARGO_PARAMETERS_FILE}"
         echo "------------------------------------------------------"
 
