@@ -119,13 +119,6 @@ steps:
       steps:
         - checkout
 
-  - run:
-      name: Computing Environment Profile
-      environment:
-        VALUES_FILE_NAME: << parameters.values-file >>
-        OUTPUT_PROFILE_FILE_NAME: /tmp/environment-profile
-      command: << include(scripts/generate_environment_profile.sh) >>
-
   - update-kubeconfig-with-authenticator:
       cluster-name: << parameters.cluster-name >>
       aws-region: << parameters.region >>
@@ -203,7 +196,6 @@ steps:
       chart: << parameters.chart >>
       args: <<#parameters.args>><<parameters.args>><</parameters.args>>
       mesh: << parameters.mesh >>
-      profile-file-name: /tmp/environment-profile
 
   - argo-deploy-application:
       release-name: << parameters.release-name >>
@@ -219,7 +211,6 @@ steps:
       rollout-status: << parameters.rollout-status >>
       rollout-status-timeout: << parameters.rollout-status-timeout >>
       project: << parameters.project >>
-      profile-file-name: /tmp/environment-profile
       old-school-chart-file: /tmp/helm-detection/chart_name
 
   - when:
@@ -235,5 +226,4 @@ steps:
               FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
               FEEDBACK_CHECK_INTERVAL: 10
               ROLLOUT_STATUS_CHECK_INTERVAL: 10
-              PROFILE_FILE_NAME: /tmp/environment-profile
             command: << include(scripts/argo_migration_workflow.sh) >>

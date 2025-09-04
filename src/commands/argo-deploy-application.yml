@@ -14,9 +14,6 @@ parameters:
     type: string
   mesh:
     type: boolean
-  profile-file-name:
-    description: The name of the resulting file where attributes related to the environment will be stored
-    type: string
   destination-server:
     type: string
   project:
@@ -111,7 +108,6 @@ steps:
           --set mesh=<< parameters.mesh >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --set-string previousChartName="$OLD_SCHOOL_CHART_NAME" \
-          --values << parameters.profile-file-name >> \
           "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
@@ -151,6 +147,8 @@ steps:
             targetRevision: master
             helm:
               valueFiles:
+                - values.yaml
+                - "values-${PROFILE_NAME}.yaml"
                 - "\$values/<< parameters.values-file >>"
               $PARAMETERS_INDENTED
           - repoURL: "${REPOSITORY_HTTP_URL}"
