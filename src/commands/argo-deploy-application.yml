@@ -109,6 +109,7 @@ steps:
           --set-string image.tag=\"\${CIRCLE_SHA1:0:7}\" \
           --set mesh=false \
           --set global.profile=\$PROFILE_NAME \
+          --set canaryMigrationPhaseOverride=\"\$CANARY_MIGRATION_PHASE\" \
           $SANITIZED_ARGS \
           --set-string previousChartName=\"\$OLD_SCHOOL_CHART_NAME\""
         eval "$HELM_COMMAND" > "$ARGO_PARAMETERS_RAW_FILE"
@@ -159,7 +160,7 @@ steps:
           - path: microservices-v8
             name: main-helm-chart
             repoURL: https://github.com/TiendaNube/helm-charts
-            targetRevision: bac-428-support-multiple-values-files-in-argo-cd-applications
+            targetRevision: master
             helm:
               valueFiles:
                 - "\$values/<< parameters.values-file >>"$ADDITIONAL_VALUE_FILES
