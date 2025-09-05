@@ -109,9 +109,9 @@ steps:
           $SANITIZED_ARGS \
           --set-string image.tag=\"<< parameters.image-tag >>\" \
           --set mesh=<< parameters.mesh >> \
-          --set-string global.profile=\$PROFILE_NAME \
-          --set-string canaryMigrationPhaseOverride=\$CANARY_MIGRATION_PHASE \
-          --set-string previousChartName=\$OLD_SCHOOL_CHART_NAME"
+          --set-string global.profile=\"\$PROFILE_NAME\" \
+          --set-string canaryMigrationPhaseOverride=\"\$CANARY_MIGRATION_PHASE\" \
+          --set-string previousChartName=\"\$OLD_SCHOOL_CHART_NAME\""
         eval "$HELM_COMMAND" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
