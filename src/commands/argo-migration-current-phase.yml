@@ -39,7 +39,7 @@ steps:
           --namespace << parameters.namespace >> \
           --set-string image.tag="<< parameters.image-tag >>" \
           --set mesh=<< parameters.mesh >> \
-          --set global.profile=$PROFILE_NAME \
+          --set-string global.profile=$PROFILE_NAME \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --dry-run=server \
           << parameters.chart >> > $MIGRATION_PHASE_RAW_FILE

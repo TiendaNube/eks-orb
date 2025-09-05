@@ -106,11 +106,11 @@ steps:
         # Generate template output with all values
         HELM_COMMAND="helmv3 template \
           parameter-chart \"\$PARAMETERS_CHART_DIR\" \
-          --set-string image.tag=\"\${CIRCLE_SHA1:0:7}\" \
-          --set mesh=false \
-          --set global.profile=\$PROFILE_NAME \
-          --set canaryMigrationPhaseOverride=\"\$CANARY_MIGRATION_PHASE\" \
           $SANITIZED_ARGS \
+          --set-string image.tag=\"\<< parameters.image-tag >>\" \
+          --set mesh=<< parameters.mesh >> \
+          --set-string global.profile=\$PROFILE_NAME \
+          --set-string canaryMigrationPhaseOverride=\"\$CANARY_MIGRATION_PHASE\" \
           --set-string previousChartName=\"\$OLD_SCHOOL_CHART_NAME\""
         eval "$HELM_COMMAND" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
