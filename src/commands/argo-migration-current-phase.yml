@@ -1,6 +1,6 @@
 description: |
   Compute the current migration phase.
-  The migration phase is written to << parameters.profile-file-name >> for use in subsequent steps.
+  The migration phase is written to CANARY_MIGRATION_PHASE environment variable for use in subsequent steps.
 
 parameters:
   release-name:
@@ -17,9 +17,6 @@ parameters:
     type: string
   mesh:
     type: boolean
-  profile-file-name:
-    description: The name of the resulting file where attributes related to the environment will be stored
-    type: string
 
 steps:
   - run:
@@ -42,8 +39,8 @@ steps:
           --namespace << parameters.namespace >> \
           --set-string image.tag="<< parameters.image-tag >>" \
           --set mesh=<< parameters.mesh >> \
+          --set-string global.profile=$PROFILE_NAME \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --values << parameters.profile-file-name >> \
           --dry-run=server \
           << parameters.chart >> > $MIGRATION_PHASE_RAW_FILE
         echo "------------------------------------------------------"
@@ -71,12 +68,8 @@ steps:
           MIGRATION_PHASE="completed"
           echo "ℹ️  No migration phase found. Defaulting to: $MIGRATION_PHASE"
         fi
-        if ! yq -i '.canaryMigrationPhaseOverride = strenv(MIGRATION_PHASE)' << parameters.profile-file-name >>; then
-          echo "❌ Error: Failed to write migration phase to << parameters.profile-file-name >>"
-          exit 1
-        fi
+        echo "------------------------------------------------------"
+        echo "export CANARY_MIGRATION_PHASE=$MIGRATION_PHASE" | tee -a $BASH_ENV
         echo "------------------------------------------------------"
         echo "🏷️  Migration phase: $MIGRATION_PHASE"
-        echo "🏷️  Environment profile content:"
-        cat << parameters.profile-file-name >>
         echo "------------------------------------------------------"

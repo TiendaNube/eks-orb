@@ -14,9 +14,6 @@ parameters:
     type: string
   mesh:
     type: boolean
-  profile-file-name:
-    description: The name of the resulting file where attributes related to the environment will be stored
-    type: string
   destination-server:
     type: string
   project:
@@ -48,6 +45,8 @@ steps:
         mkdir -p "$ARGO_PARAMETERS_DIR"
         # Clean any previous files
         rm -f "$ARGO_PARAMETERS_DIR"/* 2>/dev/null || true
+        ARGS='<< parameters.args >>'
+        SANITIZED_ARGS=$(printf '%s\n' "$ARGS" | sed '/^[[:space:]]*--values[[:space:]]/d' | tr '\n' ' ' | sed -E 's/\\[[:space:]]+/ /g; s/[[:space:]]+/ /g; s/^[[:space:]]*//; s/[[:space:]]*$//')
         echo "📄 Environment already set up for this step"
         echo "------------------------------------------------------"
         # Create directory structure for the chart
@@ -105,14 +104,15 @@ steps:
         ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
         ARGO_PARAMETERS_RAW_FILE="$ARGO_PARAMETERS_DIR/raw-parameters.yaml"
         # Generate template output with all values
-        helmv3 template \
-          parameter-chart \
-          --set-string image.tag="<< parameters.image-tag >>" \
+        HELM_COMMAND="helmv3 template \
+          parameter-chart \"\$PARAMETERS_CHART_DIR\" \
+          $SANITIZED_ARGS \
+          --set-string image.tag=\"<< parameters.image-tag >>\" \
           --set mesh=<< parameters.mesh >> \
-          <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          --set-string previousChartName="$OLD_SCHOOL_CHART_NAME" \
-          --values << parameters.profile-file-name >> \
-          "$PARAMETERS_CHART_DIR" > "$ARGO_PARAMETERS_RAW_FILE"
+          --set-string global.profile=\"\$PROFILE_NAME\" \
+          --set-string canaryMigrationPhaseOverride=\"\$CANARY_MIGRATION_PHASE\" \
+          --set-string previousChartName=\"\$OLD_SCHOOL_CHART_NAME\""
+        eval "$HELM_COMMAND" > "$ARGO_PARAMETERS_RAW_FILE"
         echo "------------------------------------------------------"
         echo "📊 Parameters:"
         echo "------------------------------------------------------"
@@ -136,6 +136,18 @@ steps:
         ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
         PARAMETERS=$(cat "$ARGO_PARAMETERS_FILE")
         PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
+        HELM_VALUES_FILES='<< parameters.args >>'
+        VALUES_FILES=()
+        while [[ "$HELM_VALUES_FILES" =~ --values[[:space:]]+([^[:space:]\\]+) ]]; do
+          VALUES_FILES+=("${BASH_REMATCH[1]}")
+          HELM_VALUES_FILES="${HELM_VALUES_FILES/${BASH_REMATCH[0]}/}"
+        done
+        ADDITIONAL_VALUE_FILES=""
+        if [[ ${#VALUES_FILES[@]} -gt 0 ]]; then
+          for values_file in "${VALUES_FILES[@]}"; do
+            ADDITIONAL_VALUE_FILES+=$'\n'"        - \"\$values/${values_file}\""
+          done
+        fi
         cat \<< EOF > $ARGO_APP_VALUE_FILE
         argocd:
           namespace: argocd
@@ -151,7 +163,7 @@ steps:
             targetRevision: master
             helm:
               valueFiles:
-                - "\$values/<< parameters.values-file >>"
+                - "\$values/<< parameters.values-file >>"$ADDITIONAL_VALUE_FILES
               $PARAMETERS_INDENTED
           - repoURL: "${REPOSITORY_HTTP_URL}"
             name: "${CIRCLE_PROJECT_REPONAME}"

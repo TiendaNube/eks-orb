@@ -274,13 +274,14 @@ EOF
 }
 
 # Drives the migration workflow, iterating through each migration phase and waiting for user feedback at each step.
-# Reads required variables from the environment and profile file.
+# Reads required variables from the environment.
 function exec_migration_workflow() {
 
   local application_name="${APPLICATION_NAME}"
   local namespace="${NAMESPACE}"
-  local profile_file_name="${PROFILE_FILE_NAME}"
+  local canary_migration_phase="${CANARY_MIGRATION_PHASE}"
   local application_namespace="${APPLICATION_NAMESPACE}"
+  local profile_name="${PROFILE_NAME}"
 
   local feedback_annotation_key="${FEEDBACK_ANNOTATION_KEY}"
   local feedback_check_interval="${FEEDBACK_CHECK_INTERVAL}"
@@ -291,13 +292,14 @@ function exec_migration_workflow() {
   local rollout_status_check_interval="${ROLLOUT_STATUS_CHECK_INTERVAL}"
 
   # Validate all required input parameters
-  if [[ -z "$application_name" || -z "$namespace" || -z "$profile_file_name" || -z "$application_namespace" || \
-        -z "$feedback_annotation_key" || -z "$feedback_check_interval" || -z "$feedback_timeout" || \
+  if [[ -z "$application_name" || -z "$namespace" || -z "$canary_migration_phase" || -z "$application_namespace" || \
+        -z "$profile_name" || -z "$feedback_annotation_key" || -z "$feedback_check_interval" || -z "$feedback_timeout" || \
         -z "$rollout_name" || -z "$rollout_status_timeout" || -z "$rollout_status_check_interval" ]]; then
     echo -e "${RED}Error: One or more required input parameters are missing.${NC}"
     echo -e "${RED}  APPLICATION_NAME:              '${application_name}'${NC}"
     echo -e "${RED}  NAMESPACE:                     '${namespace}'${NC}"
-    echo -e "${RED}  PROFILE_FILE_NAME:             '${profile_file_name}'${NC}"
+    echo -e "${RED}  PROFILE_NAME:                  '${profile_name}'${NC}"
+    echo -e "${RED}  CANARY_MIGRATION_PHASE:        '${canary_migration_phase}'${NC}"
     echo -e "${RED}  APPLICATION_NAMESPACE:         '${application_namespace}'${NC}"
     echo -e "${RED}  FEEDBACK_ANNOTATION_KEY:       '${feedback_annotation_key}'${NC}"
     echo -e "${RED}  FEEDBACK_CHECK_INTERVAL:       '${feedback_check_interval}'${NC}"
@@ -309,15 +311,11 @@ function exec_migration_workflow() {
     exit 2
   fi
 
-  if [[ ! -f "$profile_file_name" ]]; then
-    echo -e "${RED}Error: Profile file '$profile_file_name' not found.${NC}"
-    exit 2
-  fi
-
   echo "=================================================================================================================="
   echo -e "${BLUE}🔍 Migration Workflow Context:${NC}"
   echo "   - Application Name:              ${application_name}"
   echo "   - Namespace:                     ${namespace}"
+  echo "   - Profile Name:                  ${profile_name}"
   echo "   - Rollout Name:                  ${rollout_name}"
   echo "   - Application Namespace:         ${application_namespace}"
   echo "   - Rollout Status Check Interval: ${rollout_status_check_interval} seconds"
@@ -325,18 +323,11 @@ function exec_migration_workflow() {
   echo "   - Feedback Annotation Key:       ${feedback_annotation_key}"
   echo "   - Feedback Check Interval:       ${feedback_check_interval} seconds"
   echo "   - Feedback Timeout:              ${feedback_timeout}"
-  echo "   - Profile File:                  ${profile_file_name}"
-  echo "   - Profile File Content:"
-  echo "--------------------------------------------------"
-  cat -n "${profile_file_name}"
-  echo "--------------------------------------------------"
+  echo "   - Canary Migration Phase:        ${canary_migration_phase}"
   echo "=================================================================================================================="
 
-  local phase_value
-  phase_value=$(yq '.canaryMigrationPhaseOverride' "$profile_file_name" | tr -d '\n')  
-
   # If migration is already completed, skip the rest
-  if [[ "$phase_value" == "completed" ]]; then
+  if [[ "$canary_migration_phase" == "completed" ]]; then
     echo -e "${GREEN}Migration is already completed. No further actions are required.${NC}"
     exit 0
   fi
@@ -347,7 +338,7 @@ function exec_migration_workflow() {
 
   # Find the current phase index
   for i in "${!phases[@]}"; do
-    if [[ "${phases[$i]}" == "$phase_value" ]]; then
+    if [[ "${phases[$i]}" == "$canary_migration_phase" ]]; then
       start_index=$i
       break
     fi
@@ -355,15 +346,7 @@ function exec_migration_workflow() {
 
   # Check if phase is valid
   if [[ "$start_index" -eq -1 ]]; then
-    echo -e "${RED}Unknown phase value in $profile_file_name: $phase_value${NC}"
-    exit 2
-  fi
-
-  local profile_name
-  profile_name=$(yq '.profileName' "$profile_file_name" | tr -d '\n')
-
-  if [[ -z "$profile_name" ]]; then
-    echo -e "${RED}Error: Profile name is empty in $profile_file_name.${NC}"
+    echo -e "${RED}Unknown phase value in 'CANARY_MIGRATION_PHASE' environment variable: $canary_migration_phase${NC}"
     exit 2
   fi
 
