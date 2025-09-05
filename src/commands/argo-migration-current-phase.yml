@@ -35,12 +35,11 @@ steps:
         # Render Helm chart to a temporary file
         helmv3 template \
           << parameters.release-name >> \
-          --values "values.yaml" \
-          --values "values-${PROFILE_NAME}.yaml" \
           --values << parameters.values-file >> \
           --namespace << parameters.namespace >> \
           --set-string image.tag="<< parameters.image-tag >>" \
           --set mesh=<< parameters.mesh >> \
+          --set global.profile=$PROFILE_NAME \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
           --dry-run=server \
           << parameters.chart >> > $MIGRATION_PHASE_RAW_FILE
@@ -69,6 +68,7 @@ steps:
           MIGRATION_PHASE="completed"
           echo "ℹ️  No migration phase found. Defaulting to: $MIGRATION_PHASE"
         fi
+        echo "------------------------------------------------------"
         echo "export CANARY_MIGRATION_PHASE=$MIGRATION_PHASE" | tee -a $BASH_ENV
         echo "------------------------------------------------------"
         echo "🏷️  Migration phase: $MIGRATION_PHASE"
