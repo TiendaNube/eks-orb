@@ -68,7 +68,9 @@ steps:
         {{- $sentinelDollarEscaped := "::DOLLAR_ESCAPED::" -}}
         {{- $sentinelNewlineEscaped := "::NEWLINE_ESCAPED::" -}}
         {{- $value := . -}}
-        {{- if or (kindIs "bool" $value) (kindIs "float64" $value) (kindIs "int" $value) }}
+        {{- if or (kindIs "bool" $value) 
+                  (kindIs "float" $value) (kindIs "float8" $value) (kindIs "float16" $value) (kindIs "float32" $value) (kindIs "float64" $value)
+                  (kindIs "int" $value) (kindIs "int8" $value) (kindIs "int16" $value) (kindIs "int32" $value) (kindIs "int64" $value) }}
         value: {{ $value }}
         {{- else }}
         value: {{ $value | replace "$$" $sentinelDollarEscaped | replace "$" "$$" | replace $sentinelDollarEscaped "$$" | replace "\\n" $sentinelNewlineEscaped | quote }}
