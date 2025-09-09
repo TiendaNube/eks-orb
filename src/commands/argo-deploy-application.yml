@@ -28,6 +28,9 @@ parameters:
     type: string
   rollout-status:
     type: boolean
+  check-valid-previous-status:
+    type: boolean
+    default: true
   # Parameters for ArgoCD Application migration
   old-school-chart-file:
     description: The file name of the chart used before migrating
@@ -35,6 +38,12 @@ parameters:
   # Parameters for ArgoCD Application migration
 
 steps:
+  - when:
+      condition: << parameters.check-valid-previous-status >>
+      steps:
+        - argo-app-previous-status:
+            release-name: << parameters.release-name >>
+
   - run:
       name: Compute ArgoCD Application parameters from Helm chart
       command: |
