@@ -120,6 +120,7 @@ workflows:
           values-file: .circleci/resources/values-test-rollout-staging.yml
           mesh: true
           args: |
+            --set env.LARGE_NUMBER_INT64=9123456789 \
             --set env.DB_HOST_PRIMARY=$(echo "$secret_string" | jq -r ".DB_HOST_PRIMARY") \
             --set env.SETTINGS_ENV=feature \
             --set env.SPRING_PROFILES_ACTIVE=feature \
