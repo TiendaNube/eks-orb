@@ -14,7 +14,7 @@ parameters:
   debug:
     description: Whether to print debug information
     type: boolean
-    default: false
+    default: true
 
 steps:
   - run:
