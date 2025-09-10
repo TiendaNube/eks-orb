@@ -22,6 +22,7 @@ if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
   exit 2
 fi
 
+#shellcheck disable=SC1090
 source <(echo "$ARGO_CLI_COMMON_SCRIPT")
 
 # Check that the with_argocd_cli function is available
