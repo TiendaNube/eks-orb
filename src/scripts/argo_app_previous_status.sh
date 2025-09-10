@@ -28,7 +28,7 @@ function print_header() {
   echo "   - Timeout: ${ARGO_APP_STATUS_TIMEOUT}"
   echo "   - Check interval: ${ARGO_APP_STATUS_CHECK_INTERVAL}s"
   echo "   - Debug: ${ARGO_APP_STATUS_DEBUG}"
-  echo "--------------------------------------------------------"
+  echo "========================================================"
 }
 
 #shellcheck disable=SC2329
@@ -40,7 +40,7 @@ function check_argocd_app_status() {
     echo "========================================================"
     echo "🔍 Checking Argo Application status (attempt $i)..."
 
-    output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" -o json)
+    output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json)
     if [[ $ARGO_APP_STATUS_DEBUG == true ]]; then
       echo "---- CMD OUTPUT --------------------------------------------"
       echo "$output"
