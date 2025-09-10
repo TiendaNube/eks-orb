@@ -1,4 +1,4 @@
-description: Checks status of ArgoCD Application before new rollout is launched
+description: Check ArgoCD Application status before new rollout
 
 parameters:
   release-name:
@@ -14,11 +14,10 @@ parameters:
   debug:
     description: Whether to print debug information
     type: boolean
-    default: true
+    default: false
 
 steps:
   - run:
-      name: Check if ArgoCD Application is in valid state before new rollout
       environment:
         RELEASE_NAME: << parameters.release-name >>
         ARGO_APP_STATUS_TIMEOUT: << parameters.timeout >>
