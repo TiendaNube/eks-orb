@@ -6,11 +6,11 @@ parameters:
   check-interval:
     description: Number of seconds to wait between status checks
     type: integer
-    default: 10
+    default: 15
   timeout:
     description: Maximum number of seconds to run status checks before quitting
     type: string
-    default: '1m'
+    default: '5m'
   debug:
     description: Whether to print debug information
     type: boolean
@@ -18,6 +18,7 @@ parameters:
 
 steps:
   - run:
+      name: Check ArgoCD Application status before new rollout
       environment:
         RELEASE_NAME: << parameters.release-name >>
         ARGO_APP_STATUS_TIMEOUT: << parameters.timeout >>
