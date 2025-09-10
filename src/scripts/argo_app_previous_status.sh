@@ -47,8 +47,8 @@ function check_argocd_app_status() {
       echo "------------------------------------------------------------"
     fi
 
-    # Extract JSON part by finding the first '{' and taking everything from there
-    json_output=$(echo "$output" | sed -n '/^{/,$p')
+    # Extract JSON part by finding the first '{' and last '}' to get only valid JSON
+    json_output=$(echo "$output" | awk '/^{/ {flag=1} flag && /^}$/ {print; exit} flag')
     
     sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
     health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
