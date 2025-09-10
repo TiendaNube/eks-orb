@@ -11,8 +11,8 @@
 #   ARGO_CLI_COMMON_SCRIPT        - The script to source for required functions
 #
 # Returns:
-#   - Exit code 0 if application is Synced (in any state: Healthy, Completed, Degraded, Error, or Aborted).
-#   - Exit code 1 if application is OutOfSync (Suspended or Progressing) and timeout is reached.
+#   - Exit code 0 if application Sync Status is Synced (regardless of Health).
+#   - Exit code 1 if application remains OutOfSync until timeout.
 #   - Exit code 2 for script errors
 
 # Colors for output
@@ -33,30 +33,30 @@ function print_header() {
 
 #shellcheck disable=SC2329
 function check_argocd_app_status() {
-  local output
+  local output sync_status health_status
   local i=1
 
   while true; do
     echo "========================================================"
     echo "🔍 Checking Argo Application status (attempt $i)..."
-    output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}")
+
+    output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" -o json)
     if [[ $ARGO_APP_STATUS_DEBUG == true ]]; then
-      echo "-----CMD OUTPUT---------------------------------------------"
+      echo "---- CMD OUTPUT --------------------------------------------"
       echo "$output"
       echo "------------------------------------------------------------"
     fi
-    if echo "$output" | grep "Sync Status:.*OutOfSync" >/dev/null 2>&1; then
-      echo -e "${YELLOW}⚠️ ArgoCD Application is out of sync${NC}"
-      if echo "$output" | grep "Health Status:.*Suspended" >/dev/null 2>&1; then
-        echo -e "${YELLOW}⚠️ ArgoCD Application is suspended${NC}"
-      elif echo "$output" | grep "Health Status:.*Progressing" >/dev/null 2>&1; then
-        echo -e "${YELLOW}⚠️ ArgoCD Application is progressing${NC}"
-      fi
+
+    sync_status=$(echo "$output" | jq -r '.status.sync.status // "Unknown"')
+    health_status=$(echo "$output" | jq -r '.status.health.status // "Unknown"')
+    if [[ "$sync_status" == "OutOfSync" ]]; then
+      echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync with health status: ${health_status}${NC}"
     else
-      echo -e "${GREEN}✅ ArgoCD Application is in valid state for deployment${NC}"
+      echo -e "${GREEN}✅ ArgoCD Application is in valid state for deployment with health status: ${health_status}${NC}"
       echo "$output"
       exit 0
     fi
+
     i=$((i+1))
     sleep "${ARGO_APP_STATUS_CHECK_INTERVAL}"
   done
