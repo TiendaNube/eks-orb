@@ -39,9 +39,11 @@ function check_argocd_app_status() {
   while true; do
     echo "========================================================"
     echo "🔍 Checking Argo Application status (attempt $i)..."
-    output=$(with_argocd_cli -- argocd app get "argocd/${RELEASE_NAME}")
+    output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}")
     if [[ $ARGO_APP_STATUS_DEBUG == true ]]; then
+      echo "-----CMD OUTPUT---------------------------------------------"
       echo "$output"
+      echo "------------------------------------------------------------"
     fi
     if echo "$output" | grep "Sync Status:.*OutOfSync" >/dev/null 2>&1; then
       echo -e "${YELLOW}⚠️ ArgoCD Application is out of sync${NC}"
