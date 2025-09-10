@@ -47,8 +47,11 @@ function check_argocd_app_status() {
       echo "------------------------------------------------------------"
     fi
 
-    sync_status=$(echo "$output" | jq -r '.status.sync.status // "Unknown"')
-    health_status=$(echo "$output" | jq -r '.status.health.status // "Unknown"')
+    # Extract JSON part by finding the first '{' and taking everything from there
+    json_output=$(echo "$output" | sed -n '/^{/,$p')
+    
+    sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
+    health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
     if [[ "$sync_status" == "OutOfSync" ]]; then
       echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync with health status: ${health_status}${NC}"
     else
