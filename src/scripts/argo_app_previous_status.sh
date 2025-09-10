@@ -80,24 +80,23 @@ if ! command -v argocd >/dev/null 2>&1; then
   exit 2
 fi
 
-#shellcheck disable=SC1090
-source <(echo "$ARGO_CLI_COMMON_SCRIPT")
-
-# Check that the with_argocd_cli function is available
-if ! declare -f with_argocd_cli > /dev/null; then
-  echo -e "${RED}❌ with_argocd_cli function is not defined in subshell!${NC}"
-  exit 2
-fi
-
 print_header
 
 TIMEOUT_RESULT=0
 
-export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_DEBUG
+export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f check_argocd_app_status)
-  $(declare -f with_argocd_cli)
+  
+  source <(echo "$ARGO_CLI_COMMON_SCRIPT")
+
+  # Check that the with_argocd_cli function is available
+  if ! declare -f with_argocd_cli > /dev/null; then
+    echo -e "${RED}❌ with_argocd_cli function is not defined in subshell!${NC}"
+    exit 2
+  fi
+
   check_argocd_app_status
 EOF
 )" || TIMEOUT_RESULT=$?
