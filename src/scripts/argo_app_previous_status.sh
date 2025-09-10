@@ -44,14 +44,14 @@ function check_argocd_app_status() {
       echo "$output"
     fi
     if echo "$output" | grep "Sync Status:.*OutOfSync" >/dev/null 2>&1; then
-      echo -e "${YELLOW}ArgoCD Application is out of sync${NC}"
+      echo -e "${YELLOW}⚠️ ArgoCD Application is out of sync${NC}"
       if echo "$output" | grep "Health Status:.*Suspended" >/dev/null 2>&1; then
-        echo -e "${YELLOW}ArgoCD Application is suspended${NC}"
+        echo -e "${YELLOW}⚠️ ArgoCD Application is suspended${NC}"
       elif echo "$output" | grep "Health Status:.*Progressing" >/dev/null 2>&1; then
-        echo -e "${YELLOW}ArgoCD Application is progressing${NC}"
+        echo -e "${YELLOW}⚠️ ArgoCD Application is progressing${NC}"
       fi
     else
-      echo -e "${GREEN}ArgoCD Application is in valid state for deployment${NC}"
+      echo -e "${GREEN}✅ ArgoCD Application is in valid state for deployment${NC}"
       echo "$output"
       exit 0
     fi
@@ -64,7 +64,7 @@ set +e
 
 if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
    [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]] || [[ -z "$ARGO_CLI_COMMON_SCRIPT" ]]; then
-  echo -e "${RED}Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
+  echo -e "${RED}❌ Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
   exit 2
 fi
 
@@ -74,10 +74,11 @@ fi
 
 # Validate that argocd CLI is available
 if ! command -v argocd >/dev/null 2>&1; then
-  echo -e "${RED}Error: argocd CLI is not installed or not in PATH.${NC}"
+  echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
   exit 2
 fi
 
+#shellcheck disable=SC1090
 source <(echo "$ARGO_CLI_COMMON_SCRIPT")
 
 # Check that the with_argocd_cli function is available
@@ -94,6 +95,7 @@ export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_DEBUG
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f check_argocd_app_status)
+  $(declare -f with_argocd_cli)
   check_argocd_app_status
 EOF
 )" || TIMEOUT_RESULT=$?
