@@ -33,7 +33,7 @@ function print_header() {
 
 #shellcheck disable=SC2329
 function check_argocd_app_status() {
-  local output sync_status health_status
+  local output sync_status health_status json_output
   local i=1
 
   while true; do
@@ -53,11 +53,13 @@ function check_argocd_app_status() {
     sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
     health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
     if [[ "$sync_status" == "OutOfSync" ]]; then
-      echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync with health status: ${health_status}${NC}"
-    else
-      echo -e "${GREEN}✅ ArgoCD Application is in valid state for deployment with health status: ${health_status}${NC}"
-      echo "$output"
+      echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync; health: ${health_status}; waiting...${NC}"
+    elif [[ "$sync_status" == "Synced" ]]; then
+      echo -e "${GREEN}✅ ArgoCD Application is Synced; health: ${health_status}${NC}"
+      echo "$json_output"
       exit 0
+    else
+      echo -e "${YELLOW}⚠️ ArgoCD Application sync status is '${sync_status}'; waiting...${NC}"
     fi
 
     i=$((i+1))
@@ -77,9 +79,15 @@ if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
 fi
 
-# Validate that argocd CLI is available
+# Validate that ArgoCD CLI is available
 if ! command -v argocd >/dev/null 2>&1; then
   echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
+  exit 2
+fi
+
+# Validate that jq is available
+if ! command -v jq >/dev/null 2>&1; then
+  echo -e "${RED}❌ Error: jq is not installed or not in PATH.${NC}"
   exit 2
 fi
 
