@@ -1,19 +1,26 @@
 #!/bin/bash
 
 # Script to check the status of an Argo Application
+# It expects ARGO_CLI_COMMON_SCRIPT to be set and sources it for required functions.
 #
 # Usage: Set the following environment variables:
 #   RELEASE_NAME                   - The release name to check
 #   ARGO_APP_STATUS_TIMEOUT        - Timeout in seconds
 #   ARGO_APP_STATUS_CHECK_INTERVAL - Interval between checks in seconds
 #   ARGO_APP_STATUS_DEBUG          - Whether to print debug information
+#   ARGO_CLI_COMMON_SCRIPT        - The script to source for required functions
 #
 # Returns:
 #   - Exit code 0 if application is Synced (in any state: Healthy, Completed, Degraded, Error, or Aborted).
 #   - Exit code 1 if application is OutOfSync (Suspended or Progressing) and timeout is reached.
 #   - Exit code 2 for script errors
 
-# Print status header
+# Colors for output
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+NC="\033[0m" # No Color
+
 function print_header() {
   echo "========================================================"
   echo "🔍 Checking Argo Application Health and Sync status for:"
@@ -32,19 +39,19 @@ function check_argocd_app_status() {
   while true; do
     echo "========================================================"
     echo "🔍 Checking Argo Application status (attempt $i)..."
-    output=$(argocd app get "argocd/${RELEASE_NAME}")
+    output=$(with_argocd_cli -- argocd app get "argocd/${RELEASE_NAME}")
     if [[ $ARGO_APP_STATUS_DEBUG == true ]]; then
       echo "$output"
     fi
     if echo "$output" | grep "Sync Status:.*OutOfSync" >/dev/null 2>&1; then
-      echo "ArgoCD Application is out of sync"
+      echo -e "${YELLOW}ArgoCD Application is out of sync${NC}"
       if echo "$output" | grep "Health Status:.*Suspended" >/dev/null 2>&1; then
-        echo "ArgoCD Application is suspended"
+        echo -e "${YELLOW}ArgoCD Application is suspended${NC}"
       elif echo "$output" | grep "Health Status:.*Progressing" >/dev/null 2>&1; then
-        echo "ArgoCD Application is progressing"
+        echo -e "${YELLOW}ArgoCD Application is progressing${NC}"
       fi
     else
-      echo "ArgoCD Application is in valid state for deployment"
+      echo -e "${GREEN}ArgoCD Application is in valid state for deployment${NC}"
       echo "$output"
       exit 0
     fi
@@ -55,13 +62,28 @@ function check_argocd_app_status() {
 
 set +e
 
-if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]]; then
-  echo "Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, and ARGO_APP_STATUS_CHECK_INTERVAL are required."
+if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
+   [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]] || [[ -z "$ARGO_CLI_COMMON_SCRIPT" ]]; then
+  echo -e "${RED}Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
   exit 2
 fi
 
 if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
+fi
+
+# Validate that argocd CLI is available
+if ! command -v argocd >/dev/null 2>&1; then
+  echo -e "${RED}Error: argocd CLI is not installed or not in PATH.${NC}"
+  exit 2
+fi
+
+source <(echo "$ARGO_CLI_COMMON_SCRIPT")
+
+# Check that the with_argocd_cli function is available
+if ! declare -f with_argocd_cli > /dev/null; then
+  echo -e "${RED}❌ with_argocd_cli function is not defined in subshell!${NC}"
+  exit 2
 fi
 
 print_header

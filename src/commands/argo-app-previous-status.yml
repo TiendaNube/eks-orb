@@ -24,4 +24,5 @@ steps:
         ARGO_APP_STATUS_TIMEOUT: << parameters.timeout >>
         ARGO_APP_STATUS_CHECK_INTERVAL: << parameters.check-interval >>
         ARGO_APP_STATUS_DEBUG: << parameters.debug >>
+        ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
       command: << include(scripts/argo_app_previous_status.sh) >>
