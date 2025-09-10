@@ -41,7 +41,7 @@ function check_argocd_app_status() {
     echo "🔍 Checking Argo Application status (attempt $i)..."
 
     output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json)
-    if [[ $ARGO_APP_STATUS_DEBUG ]]; then
+    if [[ $ARGO_APP_STATUS_DEBUG == "true" ]]; then
       echo "---- CMD OUTPUT --------------------------------------------"
       echo "$output"
       echo "------------------------------------------------------------"

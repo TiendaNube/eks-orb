@@ -12,9 +12,9 @@ parameters:
     type: string
     default: '5m'
   debug:
-    description: Whether to print debug information
-    type: boolean
-    default: false
+    description: Whether to print debug information (use string to avoid boolean type conversion issues)
+    type: string
+    default: "false"
 
 steps:
   - run:
