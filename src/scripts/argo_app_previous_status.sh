@@ -54,6 +54,15 @@ function check_argocd_app_status() {
     health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
     if [[ "$sync_status" == "OutOfSync" ]]; then
       echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync; health: ${health_status}; waiting...${NC}"
+      echo -e "********************************************************"
+      echo -e "${YELLOW}💡 Tip:${NC}"
+      echo -e "${YELLOW}You can visit the ArgoCD UI to help resolve the OutOfSync status if needed.${NC}"
+      if [[ "$health_status" == "Suspended" ]]; then
+        echo -e "${YELLOW}Use the 'Abort', 'Resume' or 'Promote-Full' operations to unlock Suspended status.${NC}"
+      else
+        echo -e "${YELLOW}If the operation is blocked, use the 'Terminate' operation.${NC}"
+      fi
+      echo -e "********************************************************"
     elif [[ "$sync_status" == "Synced" ]]; then
       echo -e "${GREEN}✅ ArgoCD Application is Synced; health: ${health_status}${NC}"
       echo "$json_output"
@@ -62,6 +71,7 @@ function check_argocd_app_status() {
       echo -e "${YELLOW}⚠️ ArgoCD Application sync status is '${sync_status}'; waiting...${NC}"
     fi
 
+    echo "========================================================"
     i=$((i+1))
     sleep "${ARGO_APP_STATUS_CHECK_INTERVAL}"
   done
