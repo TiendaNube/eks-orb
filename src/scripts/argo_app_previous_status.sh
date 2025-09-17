@@ -70,7 +70,7 @@ function check_argocd_app_status() {
       echo -e "${GREEN}✅ ArgoCD Application is 'Synced'; health: ${health_status}${NC}"
       if [[ "$sync_status_count" -ge "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" ]]; then
         echo "$json_output"
-        echo -e "${GREEN}After ${sync_status_count} successful attempts, DONE.${NC}"
+        echo -e "${GREEN}✅After ${sync_status_count} successful attempts, DONE.${NC}"
         exit 0
       else
         echo -e "${GREEN}Waiting for consecutive 'Synced' status...${NC}"
@@ -123,6 +123,7 @@ print_header
 
 TIMEOUT_RESULT=0
 
+export GREEN RED YELLOW NC
 export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
