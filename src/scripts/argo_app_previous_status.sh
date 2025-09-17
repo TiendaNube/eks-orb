@@ -17,10 +17,13 @@
 #   - Exit code 2 for script errors
 
 # Colors for output
-RED="\033[0;31m"
 GREEN="\033[0;32m"
+BLUE="\033[0;34m"
 YELLOW="\033[1;33m"
+RED="\033[0;31m"
 NC="\033[0m" # No Color
+
+ARGOCD_DOCS_URL="https://tiendanube.atlassian.net/wiki/spaces/EP/pages/494403591/Using+ArgoCD+for+Progressive+Delivery"
 
 function print_header() {
   echo "========================================================"
@@ -32,52 +35,75 @@ function print_header() {
   echo "========================================================"
 }
 
+# shellcheck disable=SC2329
+function print_debug_output() {
+  local output="$1"
+  if [[ $ARGO_APP_STATUS_DEBUG == "true" ]]; then
+    echo "---- CMD OUTPUT --------------------------------------------"
+    echo "$output"
+    echo "------------------------------------------------------------"
+  fi
+}
+
+# shellcheck disable=SC2329
+function print_rollout_blocked_tip() {
+  local sync_status="$1"
+  local health_status="$2"
+  local operation_phase="$3"
+
+  echo -e "${YELLOW}⚠️ ArgoCD Application Health: ${health_status}; Sync status: ${sync_status}; Operation Phase: ${operation_phase}; waiting...${NC}"
+  echo -e "************************************************************************************"
+  echo -e "${YELLOW}💡 Tip:${NC}"
+  echo -e "${YELLOW}You can visit the ArgoCD UI to help resolve the conflict status if needed.${NC}"
+  if [[ "$health_status" == "Suspended" ]]; then
+    echo -e "${YELLOW}Use the 'Abort', 'Resume' or 'Promote-Full' operations to unlock Suspended status.${NC}"
+  else
+    echo -e "${YELLOW}If the operation is blocked, evaluate using the 'Terminate' operation (at your own risk).${NC}"
+  fi
+  echo -e "${BLUE}🔗 Using ArgoCD for Progressive Delivery: ${ARGOCD_DOCS_URL}${NC}"
+  echo -e "************************************************************************************"
+}
+
 #shellcheck disable=SC2329
 function check_argocd_app_status() {
-  local output sync_status health_status json_output
-  local i=1 sync_status_count=0
+  local output json_output sync_status health_status operation_phase
+  local i=1 synced_status_count=0
 
   while true; do
     echo "========================================================"
     echo "🔍 Checking Argo Application status (attempt $i)..."
 
     output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json)
-    if [[ $ARGO_APP_STATUS_DEBUG == "true" ]]; then
-      echo "---- CMD OUTPUT --------------------------------------------"
-      echo "$output"
-      echo "------------------------------------------------------------"
-    fi
+    print_debug_output "$output"
 
     # Extract JSON part by finding the first '{' and last '}' to get only valid JSON
     json_output=$(echo "$output" | awk '/^{/ {flag=1} flag && /^}$/ {print; exit} flag')
     
     sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
     health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
-    if [[ "$sync_status" == "OutOfSync" ]]; then
-      sync_status_count=0
-      echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync; health: ${health_status}; waiting...${NC}"
-      echo -e "********************************************************"
-      echo -e "${YELLOW}💡 Tip:${NC}"
-      echo -e "${YELLOW}You can visit the ArgoCD UI to help resolve the OutOfSync status if needed.${NC}"
-      if [[ "$health_status" == "Suspended" ]]; then
-        echo -e "${YELLOW}Use the 'Abort', 'Resume' or 'Promote-Full' operations to unlock Suspended status.${NC}"
-      else
-        echo -e "${YELLOW}If the operation is blocked, use the 'Terminate' operation.${NC}"
-      fi
-      echo -e "********************************************************"
-    elif [[ "$sync_status" == "Synced" ]]; then
-      sync_status_count=$((sync_status_count+1))
-      echo -e "${GREEN}✅ ArgoCD Application is 'Synced'; health: ${health_status}${NC}"
-      if [[ "$sync_status_count" -ge "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" ]]; then
-        echo "$json_output"
-        echo -e "${GREEN}✅After ${sync_status_count} successful attempts, DONE.${NC}"
-        exit 0
-      else
-        echo -e "${GREEN}Waiting for consecutive 'Synced' status...${NC}"
-      fi
+    operation_phase=$(echo "$json_output" | jq -r '.status.operationState.phase // "Unknown"')
+    if [[ $health_status == "Suspended" ]]; then
+      synced_status_count=0
+      print_rollout_blocked_tip "$sync_status" "$health_status" "$operation_phase"
+    elif [[ $operation_phase == "Running" ]]; then
+      synced_status_count=0
+      print_rollout_blocked_tip "$sync_status" "$health_status" "$operation_phase"
     else
-      sync_status_count=0
-      echo -e "${YELLOW}⚠️ ArgoCD Application sync status is '${sync_status}'; waiting...${NC}"
+      if [[ $sync_status == "Synced" ]]; then
+        synced_status_count=$((synced_status_count+1))
+        echo -e "${GREEN}✅ ArgoCD Application is 'Synced'; Health: ${health_status}; Operation Phase: ${operation_phase}${NC}"
+        if [[ "$synced_status_count" -ge "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" ]]; then
+          print_debug_output "$output"
+          echo -e "${GREEN}🚀 After ${synced_status_count} successful attempts, DONE.${NC}"
+          exit 0
+        else
+          echo -e "${GREEN}⏳ Waiting for consecutive 'Synced' status...${NC}"
+        fi
+      else
+        echo -e "${YELLOW}⚠️ ArgoCD Application is 'OutOfSync'; Health: ${health_status}; Operation Phase: ${operation_phase}${NC}"
+        echo -e "${YELLOW}🚀 Proceeding with the rollout in order to synchronize the application.${NC}"
+        exit 0
+      fi
     fi
 
     echo "========================================================"
@@ -123,11 +149,12 @@ print_header
 
 TIMEOUT_RESULT=0
 
-export GREEN RED YELLOW NC
+export GREEN BLUE YELLOW RED NC
+export ARGOCD_DOCS_URL
 export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
-  $(declare -f check_argocd_app_status with_argocd_cli set_argocd_cli unset_argocd_cli)
+  $(declare -f check_argocd_app_status print_rollout_blocked_tip print_debug_output with_argocd_cli set_argocd_cli unset_argocd_cli)
   check_argocd_app_status
 EOF
 )" || TIMEOUT_RESULT=$?
