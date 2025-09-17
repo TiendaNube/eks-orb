@@ -4,11 +4,12 @@
 # It expects ARGO_CLI_COMMON_SCRIPT to be set and sources it for required functions.
 #
 # Usage: Set the following environment variables:
-#   RELEASE_NAME                   - The release name to check
-#   ARGO_APP_STATUS_TIMEOUT        - Timeout in seconds
-#   ARGO_APP_STATUS_CHECK_INTERVAL - Interval between checks in seconds
-#   ARGO_APP_STATUS_DEBUG          - Whether to print debug information
-#   ARGO_CLI_COMMON_SCRIPT        - The script to source for required functions
+#   RELEASE_NAME                           - The release name to check
+#   ARGO_APP_STATUS_TIMEOUT                - Timeout in seconds
+#   ARGO_APP_STATUS_CHECK_INTERVAL         - Interval between checks in seconds
+#   ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD  - Number of times that the result status is Sync before moving forward with the rollout
+#   ARGO_APP_STATUS_DEBUG                  - Whether to print debug information (use string to avoid boolean type conversion issues)
+#   ARGO_CLI_COMMON_SCRIPT                 - The script to source for required functions
 #
 # Returns:
 #   - Exit code 0 if application Sync Status is Synced (regardless of Health).
@@ -34,7 +35,7 @@ function print_header() {
 #shellcheck disable=SC2329
 function check_argocd_app_status() {
   local output sync_status health_status json_output
-  local i=1
+  local i=1 sync_status_count=0
 
   while true; do
     echo "========================================================"
@@ -53,6 +54,7 @@ function check_argocd_app_status() {
     sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
     health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
     if [[ "$sync_status" == "OutOfSync" ]]; then
+      sync_status_count=0
       echo -e "${YELLOW}⚠️ ArgoCD Application is OutOfSync; health: ${health_status}; waiting...${NC}"
       echo -e "********************************************************"
       echo -e "${YELLOW}💡 Tip:${NC}"
@@ -64,10 +66,17 @@ function check_argocd_app_status() {
       fi
       echo -e "********************************************************"
     elif [[ "$sync_status" == "Synced" ]]; then
-      echo -e "${GREEN}✅ ArgoCD Application is Synced; health: ${health_status}${NC}"
-      echo "$json_output"
-      exit 0
+      sync_status_count=$((sync_status_count+1))
+      echo -e "${GREEN}✅ ArgoCD Application is 'Synced'; health: ${health_status}${NC}"
+      if [[ "$sync_status_count" -ge "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" ]]; then
+        echo "$json_output"
+        echo -e "${GREEN}After ${sync_status_count} successful attempts, DONE.${NC}"
+        exit 0
+      else
+        echo -e "${GREEN}Waiting for consecutive 'Synced' status...${NC}"
+      fi
     else
+      sync_status_count=0
       echo -e "${YELLOW}⚠️ ArgoCD Application sync status is '${sync_status}'; waiting...${NC}"
     fi
 
@@ -114,7 +123,7 @@ print_header
 
 TIMEOUT_RESULT=0
 
-export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
+export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f check_argocd_app_status with_argocd_cli set_argocd_cli unset_argocd_cli)
