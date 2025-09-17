@@ -30,9 +30,9 @@ The following conditions allow a rollout to continue or complete. These scenario
 ## status.sync.status
 The field `status.sync.status` in the _ArgoCD Application_ resource indicates the **synchronization** state between the desired configuration (as defined in _Git_) and the actual state of the resources in the cluster.
 Possible values:
-  - `Synced`: The live state matches the desired state in Git.
-  - `OutOfSync`: The live state differs from the desired state in Git (there are changes to apply).
-  - `Unknown`: The sync status could not be determined (e.g., due to errors or missing information).
+- `Synced`: The live state matches the desired state in Git.
+- `OutOfSync`: The live state differs from the desired state in Git (there are changes to apply).
+- `Unknown`: The sync status could not be determined (e.g., due to errors or missing information).
 
 ## status.health.status
 The field `status.health.status` in the _ArgoCD Application_ resource describes the **health** of the application as determined by _ArgoCD_. This field helps you understand whether the application and its resources are operating as expected.

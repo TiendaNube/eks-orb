@@ -12,8 +12,8 @@
 #   ARGO_CLI_COMMON_SCRIPT                 - The script to source for required functions
 #
 # Returns:
-#   - Exit code 0 if application Sync Status is Synced (regardless of Health).
-#   - Exit code 1 if application remains OutOfSync until timeout.
+#   - Exit code 0 if application Rollout can proceed: Health or Degraded, Sync or OutOfSync.
+#   - Exit code 1 if application Rollout should be blocked: remains Suspended or Syncing until timeout.
 #   - Exit code 2 for script errors
 
 # Colors for output
