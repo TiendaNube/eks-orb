@@ -29,8 +29,10 @@ function print_header() {
   echo "========================================================"
   echo "🔍 Checking Argo Application Health and Sync status for:"
   echo "   - Release: ${RELEASE_NAME}"
+  echo "   - Namespace: ${APPLICATION_NAMESPACE}"
   echo "   - Timeout: ${ARGO_APP_STATUS_TIMEOUT}"
-  echo "   - Check interval: ${ARGO_APP_STATUS_CHECK_INTERVAL}s"
+  echo "   - Check interval: ${ARGO_APP_STATUS_CHECK_INTERVAL} (seconds)"
+  echo "   - Sync status threshold: ${ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD}"
   echo "   - Debug: ${ARGO_APP_STATUS_DEBUG}"
   echo "========================================================"
 }
@@ -120,6 +122,11 @@ if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] ||
   exit 2
 fi
 
+if ! [[ "$ARGO_APP_STATUS_CHECK_INTERVAL" =~ ^[0-9]+$ && "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" =~ ^[0-9]+$ ]]; then
+  echo -e "${RED}❌ Error: CHECK_INTERVAL and SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
+  exit 2
+fi
+
 if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
 fi
@@ -151,7 +158,8 @@ TIMEOUT_RESULT=0
 
 export GREEN BLUE YELLOW RED NC
 export ARGOCD_DOCS_URL
-export RELEASE_NAME ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
+export RELEASE_NAME APPLICATION_NAMESPACE
+export ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f check_argocd_app_status print_rollout_blocked_tip print_debug_output with_argocd_cli set_argocd_cli unset_argocd_cli)
