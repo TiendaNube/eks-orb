@@ -38,12 +38,6 @@ parameters:
   # Parameters for ArgoCD Application migration
 
 steps:
-  - when:
-      condition: << parameters.check-valid-previous-status >>
-      steps:
-        - argo-app-previous-status:
-            release-name: << parameters.release-name >>
-
   - run:
       name: Compute ArgoCD Application parameters from Helm chart
       command: |
@@ -201,6 +195,12 @@ steps:
         echo "------------------------------------------------------"
         cat $ARGO_APP_VALUE_FILE
         echo "------------------------------------------------------"
+
+  - when:
+      condition: << parameters.check-valid-previous-status >>
+      steps:
+        - argo-app-previous-status:
+            release-name: << parameters.release-name >>
 
   - run:
       name: Upsert Argo Application
