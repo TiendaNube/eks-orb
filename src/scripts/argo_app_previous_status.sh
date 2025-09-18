@@ -87,6 +87,7 @@ function print_rollout_blocked_tip() {
 function check_argocd_app_status() {
   local output json_output sync_status health_status operation_phase
   local i=1 synced_status_count=0
+  local wait_for_multiple_healthy_status=false
 
   while true; do
     echo "========================================================"
@@ -103,25 +104,33 @@ function check_argocd_app_status() {
     operation_phase=$(echo "$json_output" | jq -r '.status.operationState.phase // "Unknown"')
     if [[ $health_status == "Suspended" ]]; then
       synced_status_count=0
+      wait_for_multiple_healthy_status=true
       print_rollout_blocked_tip "$sync_status" "$health_status" "$operation_phase"
     elif [[ $operation_phase == "Running" ]]; then
       synced_status_count=0
+      wait_for_multiple_healthy_status=true
       print_rollout_blocked_tip "$sync_status" "$health_status" "$operation_phase"
     else
       if [[ $sync_status == "Synced" ]]; then
         synced_status_count=$((synced_status_count+1))
         echo -e "${GREEN}✅ ArgoCD Application is 'Synced'; Health: ${health_status}; Operation Phase: ${operation_phase}${NC}"
-        if [[ "$synced_status_count" -ge "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" ]]; then
+        if [[ "$wait_for_multiple_healthy_status" == false ]]; then
+          echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
           print_debug_output "$output"
-          echo -e "${GREEN}🚀 After ${synced_status_count} successful attempts, DONE.${NC}"
+          exit 0
+        elif [[ "$synced_status_count" -ge "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" ]]; then
+          print_debug_output "$output"
+          echo -e "${GREEN}🚀 After ${synced_status_count} successful attempts, DONE. Proceeding with the rollout.${NC}"
           exit 0
         else
           echo -e "${GREEN}⏳ Waiting for consecutive 'Synced' status...${NC}"
         fi
-      else
+      elif [[ "$sync_status" == "OutOfSync" ]]; then
         echo -e "${YELLOW}⚠️ ArgoCD Application is 'OutOfSync'; Health: ${health_status}; Operation Phase: ${operation_phase}${NC}"
-        echo -e "${YELLOW}🚀 Proceeding with the rollout in order to synchronize the application.${NC}"
+        echo -e "${YELLOW}🚀 Proceeding with the rollout to synchronize the application.${NC}"
         exit 0
+      else
+        echo -e "${YELLOW}⚠️ ArgoCD Application sync status is '${sync_status}'; Health: ${health_status}; Operation Phase: ${operation_phase}; waiting...${NC}"
       fi
     fi
 
