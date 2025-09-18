@@ -12,7 +12,7 @@
 #   ARGO_CLI_COMMON_SCRIPT                 - The script to source for required functions
 #
 # Returns:
-#   - Exit code 0 if application Rollout can proceed: Health or Degraded, Sync or OutOfSync.
+#   - Exit code 0 if application Rollout can proceed: Health or Degraded; Sync or OutOfSync.
 #   - Exit code 1 if application Rollout should be blocked: remains Suspended or Syncing until timeout.
 #   - Exit code 2 for script errors
 
@@ -24,6 +24,23 @@ RED="\033[0;31m"
 NC="\033[0m" # No Color
 
 ARGOCD_DOCS_URL="https://tiendanube.atlassian.net/wiki/spaces/EP/pages/494403591/Using+ArgoCD+for+Progressive+Delivery"
+
+function validate_requirements() {
+  if ! command -v argocd >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
+    exit 2
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: jq is not installed or not in PATH.${NC}"
+    exit 2
+  fi
+
+  if ! command -v timeout >/dev/null 2>&1; then
+    echo -e "${RED}❌ Error: timeout is not installed or not in PATH.${NC}"
+    exit 2
+  fi
+}
 
 function print_header() {
   echo "========================================================"
@@ -114,6 +131,10 @@ function check_argocd_app_status() {
   done
 }
 
+################################################################################
+# MAIN SCRIPT
+################################################################################
+
 set +e
 
 if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
@@ -131,17 +152,7 @@ if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
 fi
 
-# Validate that ArgoCD CLI is available
-if ! command -v argocd >/dev/null 2>&1; then
-  echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
-  exit 2
-fi
-
-# Validate that jq is available
-if ! command -v jq >/dev/null 2>&1; then
-  echo -e "${RED}❌ Error: jq is not installed or not in PATH.${NC}"
-  exit 2
-fi
+validate_requirements
 
 #shellcheck disable=SC1090
 source <(echo "$ARGO_CLI_COMMON_SCRIPT")
