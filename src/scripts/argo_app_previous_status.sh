@@ -71,7 +71,7 @@ function print_rollout_blocked_tip() {
   local operation_phase="$3"
 
   echo -e "${YELLOW}⚠️ ArgoCD Application Health: ${health_status}; Sync status: ${sync_status}; Operation Phase: ${operation_phase}; waiting...${NC}"
-  echo -e "************************************************************************************"
+  echo -e "========================================================"
   echo -e "${YELLOW}💡 Tip:${NC}"
   echo -e "${YELLOW}You can visit the ArgoCD UI to help resolve the conflict status if needed.${NC}"
   if [[ "$health_status" == "Suspended" ]]; then
@@ -79,8 +79,8 @@ function print_rollout_blocked_tip() {
   else
     echo -e "${YELLOW}If the operation is blocked, evaluate using the 'Terminate' operation (at your own risk).${NC}"
   fi
-  echo -e "${BLUE}🔗 Using ArgoCD for Progressive Delivery: ${ARGOCD_DOCS_URL}${NC}"
-  echo -e "************************************************************************************"
+  echo -e "${BLUE}🔗 Read the docs: ${ARGOCD_DOCS_URL}${NC}"
+  echo -e "========================================================"
 }
 
 #shellcheck disable=SC2329
@@ -90,7 +90,7 @@ function check_argocd_app_status() {
   local wait_for_multiple_healthy_status=false
 
   while true; do
-    echo "========================================================"
+    echo "------------------------------------------------------"
     echo "🔍 Checking Argo Application status (attempt $i)..."
 
     output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json)
@@ -134,7 +134,7 @@ function check_argocd_app_status() {
       fi
     fi
 
-    echo "========================================================"
+    echo "------------------------------------------------------"
     i=$((i+1))
     sleep "${ARGO_APP_STATUS_CHECK_INTERVAL}"
   done
