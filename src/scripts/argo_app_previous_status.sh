@@ -82,18 +82,15 @@ function validate_app_exists() {
     echo -e "${RED}❌ Error: argocd app list command returned empty output.${NC}"
     exit 1
   fi
-
-  # Extract JSON part by finding the first '[' or '{' and last ']' or '}' to get only valid JSON
-  json_output=$(echo "$output" | sed -n 's/.*\([\[\{].*[\]\}]\).*/\1/p' | head -1)
   
   # Use jq to analyze the output is valid JSON
-  if ! echo "$json_output" | jq empty 2>/dev/null; then
+  if ! echo "$output" | jq empty 2>/dev/null; then
     echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
-    echo -e "${BLUE}Output:${NC} ${json_output}"
+    echo -e "${BLUE}Output:${NC} ${output}"
     exit 1
   fi
 
-  if echo "$json_output" | jq '. == []'; then
+  if echo "$output" | jq '. == []'; then
     echo -e "${YELLOW}⚠️ Argo Application ${RELEASE_NAME} not found in namespace ${APPLICATION_NAMESPACE}. First deploy.${NC}"
     echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
     exit 0
@@ -135,7 +132,7 @@ function print_rollout_blocked_tip() {
 
 #shellcheck disable=SC2329
 function check_argocd_app_status() {
-  local output json_output sync_status health_status operation_phase
+  local output sync_status health_status operation_phase
   local i=1 synced_status_count=0
   local wait_for_multiple_healthy_status=false
 
@@ -144,13 +141,10 @@ function check_argocd_app_status() {
 
     output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json)
     print_debug_output "$output"
-
-    # Extract JSON part by finding the first '{' and last '}' to get only valid JSON
-    json_output=$(echo "$output" | awk '/^{/ {flag=1} flag && /^}$/ {print; exit} flag')
     
-    sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
-    health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
-    operation_phase=$(echo "$json_output" | jq -r '.status.operationState.phase // "Unknown"')
+    sync_status=$(echo "$output" | jq -r '.status.sync.status // "Unknown"')
+    health_status=$(echo "$output" | jq -r '.status.health.status // "Unknown"')
+    operation_phase=$(echo "$output" | jq -r '.status.operationState.phase // "Unknown"')
     if [[ $health_status == "Suspended" ]]; then
       synced_status_count=0
       wait_for_multiple_healthy_status=true
