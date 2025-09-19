@@ -69,12 +69,13 @@ function print_header() {
 
 function validate_app_exists() {
   local output status
+
   output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app list -l "app=${RELEASE_NAME}" --output json)
   status=$?
 
   if [[ $status -ne 0 ]]; then
     echo -e "${RED}❌ Error: Unexpected failure querying ArgoCD Application '${RELEASE_NAME}'.${NC}"
-    echo -e "${BLUE}Output:${NC} ${output}"
+    echo -e "${BLUE}📓 Output:${NC}\n${output}"
     exit 1
   fi
   
@@ -86,11 +87,13 @@ function validate_app_exists() {
   # Use jq to analyze the output is valid JSON
   if ! echo "$output" | jq empty 2>/dev/null; then
     echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
-    echo -e "${BLUE}Output:${NC} ${output}"
+    echo -e "${BLUE}📓 Output:${NC}\n${output}"
     exit 1
   fi
 
-  if echo "$output" | jq '. == []'; then
+  local is_json_empty
+  is_json_empty=$(echo "$output" | jq '. == []')
+  if [[ "$is_json_empty" == true ]]; then
     echo -e "${YELLOW}⚠️ Argo Application ${RELEASE_NAME} not found in namespace ${APPLICATION_NAMESPACE}. First deploy.${NC}"
     echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
     exit 0
