@@ -40,6 +40,7 @@ function exec_rollout_status() {
   fi
 
   # Print result
+  #shellcheck disable=SC2329
   function print_rollout_status_result() {
     local status="$1"
     local message="$2"
@@ -53,6 +54,7 @@ function exec_rollout_status() {
   }
 
   # Main status check loop
+  #shellcheck disable=SC2329
   function check_rollout_status() {
     local i=1
     while true; do

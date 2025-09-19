@@ -1,0 +1,33 @@
+description: Check ArgoCD Application status before new rollout
+
+parameters:
+  release-name:
+    type: string
+  check-interval:
+    description: Number of seconds to wait between status checks
+    type: integer
+    default: 5
+  timeout:
+    description: Maximum number of seconds to run status checks before quitting
+    type: string
+    default: '5m'
+  sync_status_threshold:
+    description: Number of times that the result status is Sync before moving forward with the rollout
+    type: integer
+    default: 3
+  debug:
+    description: Whether to print debug information (use string to avoid boolean type conversion issues)
+    type: string
+    default: "false"
+
+steps:
+  - run:
+      name: Check ArgoCD Application status before new rollout
+      environment:
+        RELEASE_NAME: << parameters.release-name >>
+        ARGO_APP_STATUS_TIMEOUT: << parameters.timeout >>
+        ARGO_APP_STATUS_CHECK_INTERVAL: << parameters.check-interval >>
+        ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD: << parameters.sync_status_threshold >>
+        ARGO_APP_STATUS_DEBUG: << parameters.debug >>
+        ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
+      command: << include(scripts/argo_app_previous_status.sh) >>

@@ -87,5 +87,5 @@ function with_argocd_cli() {
   fi
 
   # FIXME: Allow some time for the change to propagate.
-  sleep 15
+  sleep 5
 }
