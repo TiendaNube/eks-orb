@@ -161,11 +161,17 @@ if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
 fi
 
 function validate_app_exists() {
-  local output
+  local output status
   output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json 2>&1)
+  status=$?
   if echo "$output" | grep -q "PermissionDenied"; then
     echo -e "${YELLOW}ℹ️ Info: Cannot query ArgoCD Application '${RELEASE_NAME}' (does not exist). First deploy.${NC}"
     exit 0
+  fi
+  if [[ $status -ne 0 ]]; then
+    echo -e "${RED}❌ Error: Unexpected failure querying ArgoCD Application '${RELEASE_NAME}'.${NC}"
+    echo -e "${BLUE}Output:${NC} ${output}"
+    exit 1
   fi
 }
 
