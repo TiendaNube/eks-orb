@@ -82,15 +82,18 @@ function validate_app_exists() {
     echo -e "${RED}❌ Error: argocd app list command returned empty output.${NC}"
     exit 1
   fi
+
+  # Extract JSON part by finding the first '[' or '{' and last ']' or '}' to get only valid JSON
+  json_output=$(echo "$output" | awk '/^[\[\{]/ {flag=1} flag && /^[\]\}]$/ {print; exit} flag')
   
   # Use jq to analyze the output is valid JSON
-  if ! echo "$output" | jq empty 2>/dev/null; then
+  if ! echo "$json_output" | jq empty 2>/dev/null; then
     echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
-    echo -e "${BLUE}Output:${NC} ${output}"
+    echo -e "${BLUE}Output:${NC} ${json_output}"
     exit 1
   fi
 
-  if echo "$output" | jq '. == []'; then
+  if echo "$json_output" | jq '. == []'; then
     echo -e "${YELLOW}⚠️ Argo Application ${RELEASE_NAME} not found in namespace ${APPLICATION_NAMESPACE}. First deploy.${NC}"
     echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
     exit 0
