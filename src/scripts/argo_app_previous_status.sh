@@ -152,13 +152,22 @@ if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] ||
 fi
 
 if ! [[ "$ARGO_APP_STATUS_CHECK_INTERVAL" =~ ^[0-9]+$ && "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" =~ ^[0-9]+$ ]]; then
-  echo -e "${RED}❌ Error: CHECK_INTERVAL and SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
+  echo -e "${RED}❌ Error: ARGO_APP_STATUS_CHECK_INTERVAL and ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
   exit 2
 fi
 
 if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
 fi
+
+function validate_app_exists() {
+  local output
+  output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json 2>&1)
+  if echo "$output" | grep -q "PermissionDenied"; then
+    echo -e "${YELLOW}ℹ️ Info: Cannot query ArgoCD Application '${RELEASE_NAME}' (does not exist). First deploy.${NC}"
+    exit 0
+  fi
+}
 
 validate_requirements
 
@@ -172,6 +181,8 @@ if ! declare -f with_argocd_cli > /dev/null; then
 fi
 
 print_header
+
+validate_app_exists
 
 TIMEOUT_RESULT=0
 
