@@ -25,6 +25,19 @@ NC="\033[0m" # No Color
 
 ARGOCD_DOCS_URL="https://tiendanube.atlassian.net/wiki/spaces/EP/pages/494403591/Using+ArgoCD+for+Progressive+Delivery"
 
+function validate_env_variables() {
+  if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
+     [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]] || [[ -z "$ARGO_CLI_COMMON_SCRIPT" ]]; then
+    echo -e "${RED}❌ Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
+    exit 2
+  fi
+
+  if ! [[ "$ARGO_APP_STATUS_CHECK_INTERVAL" =~ ^[0-9]+$ && "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}❌ Error: ARGO_APP_STATUS_CHECK_INTERVAL and ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
+    exit 2
+  fi
+}
+
 function validate_requirements() {
   if ! command -v argocd >/dev/null 2>&1; then
     echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
@@ -145,16 +158,7 @@ function check_argocd_app_status() {
 
 set +e
 
-if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
-   [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]] || [[ -z "$ARGO_CLI_COMMON_SCRIPT" ]]; then
-  echo -e "${RED}❌ Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
-  exit 2
-fi
-
-if ! [[ "$ARGO_APP_STATUS_CHECK_INTERVAL" =~ ^[0-9]+$ && "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" =~ ^[0-9]+$ ]]; then
-  echo -e "${RED}❌ Error: CHECK_INTERVAL and SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
-  exit 2
-fi
+validate_env_variables
 
 if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
