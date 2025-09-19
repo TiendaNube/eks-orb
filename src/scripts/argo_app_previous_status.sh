@@ -84,7 +84,7 @@ function validate_app_exists() {
   fi
 
   # Extract JSON part by finding the first '[' or '{' and last ']' or '}' to get only valid JSON
-  json_output=$(echo "$output" | awk '/^[\[\{]/ {flag=1} flag && /^[\]\}]$/ {print; exit} flag')
+  json_output=$(echo "$output" | sed -n 's/.*\([\[\{].*[\]\}]\).*/\1/p' | head -1)
   
   # Use jq to analyze the output is valid JSON
   if ! echo "$json_output" | jq empty 2>/dev/null; then
