@@ -189,7 +189,6 @@ steps:
             pruneLast: true
             validate: true
             replace: false
-            respectIgnoreDifferences: true
 
         ignoreDifferences:
           - group: networking.k8s.io
