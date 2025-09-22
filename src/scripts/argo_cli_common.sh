@@ -4,6 +4,7 @@
 # argo_cli_common.sh
 #
 # Utility functions for preparing and cleaning up the ArgoCD CLI environment.
+# Every command redirects stdout and stderr to null, to avoid adding extra output to the result of the command.
 # This script is intended to be sourced from other scripts.
 #
 # Usage:
@@ -20,7 +21,6 @@
 
 # Colors for output
 RED="\033[0;31m"
-GREEN="\033[0;32m"
 NC="\033[0m" # No Color
 
 # Sets the kubectl context to the specified namespace and logs in to ArgoCD CLI.
@@ -28,20 +28,19 @@ NC="\033[0m" # No Color
 #   $1 - Namespace to set in the kubectl context.
 function set_argocd_cli() {
   local namespace="$1"
-  if ! kubectl config set-context --current --namespace="${namespace}"; then
+  if ! kubectl config set-context --current --namespace="${namespace}" >/dev/null 2>&1; then
     echo -e "${RED}❌ Failed to set kubectl context to namespace '${namespace}'${NC}"
     return 1
   fi
-  if ! argocd login cd.argoproj.io --core; then
+  if ! argocd login cd.argoproj.io --core >/dev/null 2>&1; then
     echo -e "${RED}❌ Failed to login to ArgoCD CLI in namespace '${namespace}'${NC}"
     return 1
   fi
-  echo -e "${GREEN}✅ ArgoCD CLI prepared for namespace '${namespace}'.${NC}"
 }
 
 # Resets the kubectl context to the default namespace.
 function unset_argocd_cli() {
-  if ! kubectl config set-context --current --namespace="default"; then
+  if ! kubectl config set-context --current --namespace="default" >/dev/null 2>&1; then
     echo -e "${RED}❌ Failed to reset kubectl context to default namespace.${NC}"
     return 1
   fi 

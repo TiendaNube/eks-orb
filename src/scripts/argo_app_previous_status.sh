@@ -25,6 +25,19 @@ NC="\033[0m" # No Color
 
 ARGOCD_DOCS_URL="https://tiendanube.atlassian.net/wiki/spaces/EP/pages/494403591/Using+ArgoCD+for+Progressive+Delivery"
 
+function validate_env_variables() {
+  if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
+     [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]] || [[ -z "$ARGO_CLI_COMMON_SCRIPT" ]]; then
+    echo -e "${RED}❌ Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
+    exit 2
+  fi
+
+  if ! [[ "$ARGO_APP_STATUS_CHECK_INTERVAL" =~ ^[0-9]+$ && "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" =~ ^[0-9]+$ ]]; then
+    echo -e "${RED}❌ Error: ARGO_APP_STATUS_CHECK_INTERVAL and ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
+    exit 2
+  fi
+}
+
 function validate_requirements() {
   if ! command -v argocd >/dev/null 2>&1; then
     echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
@@ -52,6 +65,45 @@ function print_header() {
   echo "   - Sync status threshold: ${ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD}"
   echo "   - Debug: ${ARGO_APP_STATUS_DEBUG}"
   echo "============================================================="
+}
+
+# We use 'argocd app list' to check if the application exists. 
+# We cannot use 'argocd app get' because it fails with PermissionDenied when the application is not found (masking the actual error).
+function validate_app_exists() {
+  local output status
+
+  output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app list -l "app=${RELEASE_NAME}" --output json)
+  status=$?
+
+  if [[ $status -ne 0 ]]; then
+    echo -e "${RED}❌ Error: Unexpected failure querying ArgoCD Application '${RELEASE_NAME}'.${NC}"
+    echo -e "${BLUE}📓 Output:${NC}\n${output}"
+    exit 1
+  fi
+  
+  if [[ -z "$output" ]]; then
+    echo -e "${RED}❌ Error: argocd app list command returned empty output.${NC}"
+    exit 1
+  fi
+  
+  # Use jq to analyze the output is valid JSON
+  if ! echo "$output" | jq empty 2>/dev/null; then
+    echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
+    echo -e "${BLUE}📓 Output:${NC}\n${output}"
+    exit 1
+  fi
+
+  local is_json_empty
+  is_json_empty=$(echo "$output" | jq '. == []')
+  if [[ "$is_json_empty" == true ]]; then
+    echo -e "${YELLOW}⚠️ Argo Application ${RELEASE_NAME} not found in namespace ${APPLICATION_NAMESPACE}. First deploy.${NC}"
+    echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
+    exit 0
+  fi
+  
+  # If we reach here, JSON is valid and contains data.
+  # Application exists in ArgoCD, continue checking status.
+  return 0
 }
 
 # shellcheck disable=SC2329
@@ -85,7 +137,7 @@ function print_rollout_blocked_tip() {
 
 #shellcheck disable=SC2329
 function check_argocd_app_status() {
-  local output json_output sync_status health_status operation_phase
+  local output sync_status health_status operation_phase
   local i=1 synced_status_count=0
   local wait_for_multiple_healthy_status=false
 
@@ -94,13 +146,10 @@ function check_argocd_app_status() {
 
     output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app get "${RELEASE_NAME}" --output json)
     print_debug_output "$output"
-
-    # Extract JSON part by finding the first '{' and last '}' to get only valid JSON
-    json_output=$(echo "$output" | awk '/^{/ {flag=1} flag && /^}$/ {print; exit} flag')
     
-    sync_status=$(echo "$json_output" | jq -r '.status.sync.status // "Unknown"')
-    health_status=$(echo "$json_output" | jq -r '.status.health.status // "Unknown"')
-    operation_phase=$(echo "$json_output" | jq -r '.status.operationState.phase // "Unknown"')
+    sync_status=$(echo "$output" | jq -r '.status.sync.status // "Unknown"')
+    health_status=$(echo "$output" | jq -r '.status.health.status // "Unknown"')
+    operation_phase=$(echo "$output" | jq -r '.status.operationState.phase // "Unknown"')
     if [[ $health_status == "Suspended" ]]; then
       synced_status_count=0
       wait_for_multiple_healthy_status=true
@@ -145,16 +194,7 @@ function check_argocd_app_status() {
 
 set +e
 
-if [[ -z "$RELEASE_NAME" ]] || [[ -z "$ARGO_APP_STATUS_TIMEOUT" ]] || 
-   [[ -z "$ARGO_APP_STATUS_CHECK_INTERVAL" ]] || [[ -z "$ARGO_CLI_COMMON_SCRIPT" ]]; then
-  echo -e "${RED}❌ Error: RELEASE_NAME, ARGO_APP_STATUS_TIMEOUT, ARGO_APP_STATUS_CHECK_INTERVAL, and ARGO_CLI_COMMON_SCRIPT are required.${NC}"
-  exit 2
-fi
-
-if ! [[ "$ARGO_APP_STATUS_CHECK_INTERVAL" =~ ^[0-9]+$ && "$ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD" =~ ^[0-9]+$ ]]; then
-  echo -e "${RED}❌ Error: CHECK_INTERVAL and SYNC_STATUS_THRESHOLD must be integers (seconds/count).${NC}"
-  exit 2
-fi
+validate_env_variables
 
 if [[ -z "$ARGO_APP_STATUS_DEBUG" ]]; then
   ARGO_APP_STATUS_DEBUG=false
@@ -172,6 +212,8 @@ if ! declare -f with_argocd_cli > /dev/null; then
 fi
 
 print_header
+
+validate_app_exists
 
 TIMEOUT_RESULT=0
 
