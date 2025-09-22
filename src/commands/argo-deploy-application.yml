@@ -189,6 +189,12 @@ steps:
             pruneLast: true
             validate: true
             replace: false
+
+        ignoreDifferences:
+          - group: networking.k8s.io
+            kind: Ingress
+            jqPathExpressions:
+              - ".spec.rules[]?.http.paths[]? | select(.backend.service.name == \"canary-header-route\")"
         EOF
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
