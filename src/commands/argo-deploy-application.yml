@@ -189,6 +189,13 @@ steps:
             pruneLast: true
             validate: true
             replace: false
+            respectIgnoreDifferences: true
+
+        ignoreDifferences:
+          - group: networking.k8s.io
+            kind: Ingress
+            jqPathExpressions:
+              - ".spec.rules[]?.http.paths[]? | select(.backend.service.name == \"canary-header-route\")"
         EOF
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
@@ -215,7 +222,7 @@ steps:
           --values $ARGO_APP_VALUE_FILE \
           --namespace << parameters.namespace >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          << parameters.s3-chart-repo >>/argocd-apps
+          tiendanube-charts-preview/argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>-app
