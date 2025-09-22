@@ -221,7 +221,7 @@ steps:
           --values $ARGO_APP_VALUE_FILE \
           --namespace << parameters.namespace >> \
           <<#parameters.args>><<parameters.args>><</parameters.args>> \
-          tiendanube-charts-preview/argocd-apps
+          << parameters.s3-chart-repo >>/argocd-apps
 
   - helm-status:
       release-name: << parameters.release-name >>-app
