@@ -67,6 +67,8 @@ function print_header() {
   echo "============================================================="
 }
 
+# We use 'argocd app list' to check if the application exists. 
+# We cannot use 'argocd app get' because it fails with PermissionDenied when the application is not found (masking the actual error).
 function validate_app_exists() {
   local output status
 
