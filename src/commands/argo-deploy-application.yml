@@ -191,10 +191,16 @@ steps:
             replace: false
 
         ignoreDifferences:
+          # Ignore differences in the Ingress spec as Argo Rollouts will add the canary-header-route rules to enable canary rollouts
           - group: networking.k8s.io
             kind: Ingress
             jqPathExpressions:
               - ".spec.rules[]?.http.paths[]? | select(.backend.service.name == \"canary-header-route\")"
+          # Ignore differences in the ServiceAccount annotations as some of them are created by Terraform when an IAM role is needed
+          - group: ""
+            kind: ServiceAccount
+            jqPathExpressions:
+              - ".metadata.annotations[\"eks.amazonaws.com/role-arn\"]"
         EOF
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
