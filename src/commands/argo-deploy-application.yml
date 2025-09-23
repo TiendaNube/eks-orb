@@ -195,6 +195,10 @@ steps:
             kind: Ingress
             jqPathExpressions:
               - ".spec.rules[]?.http.paths[]? | select(.backend.service.name == \"canary-header-route\")"
+          - group: ""
+            kind: ServiceAccount
+            jqPathExpressions:
+              - ".metadata.annotations[\"eks.amazonaws.com/role-arn\"]"
         EOF
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
