@@ -129,7 +129,7 @@ function print_rollout_blocked_tip() {
   if [[ "$health_status" == "Suspended" ]]; then
     echo -e "${YELLOW}Use the 'Abort', 'Resume' or 'Promote-Full' operations to unlock Suspended status.${NC}"
   else
-    echo -e "${YELLOW}If the operation is blocked, evaluate using the 'Terminate' operation (at your own risk).${NC}"
+    echo -e "${YELLOW}If the operation is blocked, consider using the 'Terminate' operation (at your own risk).${NC}"
   fi
   echo -e "${BLUE}🔗 Read the docs: ${ARGOCD_DOCS_URL}${NC}"
   echo -e -------------------------------------------------------------
@@ -150,11 +150,7 @@ function check_argocd_app_status() {
     sync_status=$(echo "$output" | jq -r '.status.sync.status // "Unknown"')
     health_status=$(echo "$output" | jq -r '.status.health.status // "Unknown"')
     operation_phase=$(echo "$output" | jq -r '.status.operationState.phase // "Unknown"')
-    if [[ $health_status == "Suspended" ]]; then
-      synced_status_count=0
-      wait_for_multiple_healthy_status=true
-      print_rollout_blocked_tip "$sync_status" "$health_status" "$operation_phase"
-    elif [[ $operation_phase == "Running" ]]; then
+    if [[ $health_status =~ ^(Suspended|Progressing)$ ]] || [[ $operation_phase == "Running" ]]; then
       synced_status_count=0
       wait_for_multiple_healthy_status=true
       print_rollout_blocked_tip "$sync_status" "$health_status" "$operation_phase"
@@ -223,7 +219,8 @@ export RELEASE_NAME APPLICATION_NAMESPACE
 export ARGO_APP_STATUS_CHECK_INTERVAL ARGO_APP_STATUS_SYNC_STATUS_THRESHOLD ARGO_APP_STATUS_DEBUG ARGO_CLI_COMMON_SCRIPT
 
 timeout "${ARGO_APP_STATUS_TIMEOUT}" bash -o pipefail -c "$(cat <<EOF
-  $(declare -f check_argocd_app_status print_rollout_blocked_tip print_debug_output with_argocd_cli set_argocd_cli unset_argocd_cli)
+  $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
+  $(declare -f check_argocd_app_status print_rollout_blocked_tip print_debug_output)
   check_argocd_app_status
 EOF
 )" || TIMEOUT_RESULT=$?
