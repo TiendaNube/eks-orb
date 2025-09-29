@@ -116,7 +116,9 @@ EOF
 # --- Handles feedback loop for migration phase ---
 function handle_feedback_decision() {
 
+  #shellcheck disable=SC1090
   source <(echo "$ARGO_CLI_COMMON_SCRIPT")
+  #shellcheck disable=SC1090
   source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
 
   # Validate required functions
