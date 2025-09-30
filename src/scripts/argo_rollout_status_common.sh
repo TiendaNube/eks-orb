@@ -35,8 +35,12 @@ fi
 
 # Main entrypoint
 function exec_rollout_status() {
-
   local rollout_name="" namespace="" rollout_status_timeout="" rollout_status_check_interval=""
+
+  if [[ -z "${APPLICATION_NAMESPACE}" ]]; then
+    echo -e "${RED}❌ Error: APPLICATION_NAMESPACE environment variable is required.${NC}"
+    return 2
+  fi
 
   # Parse flags
   while [[ "$#" -gt 0 ]]; do
