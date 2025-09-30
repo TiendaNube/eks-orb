@@ -9,11 +9,11 @@ NC="\033[0m" # No Color
 
 # --- Validate required environment scripts ---
 if [[ -z "${ROLLOUT_STATUS_COMMON_SCRIPT:-}" ]]; then
-  echo -e "${RED}Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty${NC}"
+  echo -e "${RED}❌ Error: ROLLOUT_STATUS_COMMON_SCRIPT is empty${NC}"
   exit 2
 fi
 if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
-  echo -e "${RED}Error: ARGO_CLI_COMMON_SCRIPT is empty${NC}"
+  echo -e "${RED}❌ Error: ARGO_CLI_COMMON_SCRIPT is empty${NC}"
   exit 2
 fi
 
@@ -117,11 +117,10 @@ EOF
 function handle_feedback_decision() {
 
   #shellcheck disable=SC1090
-  source <(echo "$ARGO_CLI_COMMON_SCRIPT")
-  #shellcheck disable=SC1090
   source <(echo "$ROLLOUT_STATUS_COMMON_SCRIPT")
 
-  # Validate required functions
+  # Validate required functions.
+  # with_argocd_cli is defined in ARGO_CLI_COMMON_SCRIPT, but will be sourced by ROLLOUT_STATUS_COMMON_SCRIPT.
   for fn in with_argocd_cli exec_rollout_status; do
     if ! declare -f "$fn" > /dev/null; then
       echo -e "${RED}❌ $fn function is not defined in subshell!${NC}"

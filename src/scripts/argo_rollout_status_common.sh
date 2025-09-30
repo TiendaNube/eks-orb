@@ -5,6 +5,9 @@
 # Usage:
 #   ./argo_rollout_status_common.sh --rollout-name <name> --namespace <ns> --timeout <1m> --interval <10>
 #
+#   Set the following environment variables:
+#   - ARGO_CLI_COMMON_SCRIPT - The script to source for reusable Argo CLI functions
+#
 # Returns:
 #   - Exit code 0 if rollout is Healthy or Completed, or if timeout is reached
 #   - Exit code 1 if rollout is Degraded, Error, or Aborted
@@ -16,6 +19,19 @@ BLUE="\033[0;34m"
 YELLOW="\033[1;33m"
 RED="\033[0;31m"
 NC="\033[0m" # No Color
+
+if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
+  echo -e "${RED}❌ Error: ARGO_CLI_COMMON_SCRIPT is empty${NC}" >&2
+  exit 2
+fi
+
+#shellcheck disable=SC1090
+source <(echo "${ARGO_CLI_COMMON_SCRIPT}")
+
+if ! declare -f "with_argocd_cli" > /dev/null; then
+  echo -e "${RED}❌ Error: with_argocd_cli function is not defined in subshell${NC}" >&2
+  exit 2
+fi
 
 # Main entrypoint
 function exec_rollout_status() {

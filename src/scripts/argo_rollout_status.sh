@@ -32,18 +32,14 @@ fi
 #shellcheck disable=SC1090
 source <(echo "${ROLLOUT_STATUS_COMMON_SCRIPT}")
 
-if ! declare -f "exec_rollout_status" > /dev/null; then
-  echo -e "${RED}❌ Error: exec_rollout_status function is not defined in subshell${NC}" >&2
-  exit 2
-fi
-
-#shellcheck disable=SC1090
-source <(echo "${ARGO_CLI_COMMON_SCRIPT}")
-
-if ! declare -f "with_argocd_cli" > /dev/null; then
-  echo -e "${RED}❌ Error: with_argocd_cli function is not defined in subshell${NC}" >&2
-  exit 2
-fi
+# Validate required functions.
+# with_argocd_cli is defined in ARGO_CLI_COMMON_SCRIPT, but will be sourced by ROLLOUT_STATUS_COMMON_SCRIPT.
+for fn in with_argocd_cli exec_rollout_status; do
+  if ! declare -f "$fn" > /dev/null; then
+    echo -e "${RED}❌ $fn function is not defined in subshell!${NC}"
+    exit 2
+  fi
+done
 
 exec_rollout_status \
   --rollout-name "${ROLLOUT_NAME}" \
