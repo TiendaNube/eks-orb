@@ -23,18 +23,41 @@
 RED="\033[0;31m"
 NC="\033[0m" # No Color
 
+function is_argocd_logged_in() {
+  # Test authentication with a lightweight command
+  # The command returns exit code 0 even when not logged in, but outputs "Logged In: false"
+  local login_status
+  login_status=$(argocd account get-user-info 2>/dev/null | grep "^Logged In:" | awk '{print $3}')
+  [[ "$login_status" == "true" ]]
+}
+
+# Arguments:
+#   $1 - Namespace to check
+function is_kubectl_namespace_set() {
+  local namespace="$1"
+  local current_namespace
+  current_namespace=$(kubectl config view --minify --output jsonpath='{..namespace}' 2>/dev/null)
+  [[ "$current_namespace" == "$namespace" ]]
+}
+
 # Sets the kubectl context to the specified namespace and logs in to ArgoCD CLI.
 # Arguments:
 #   $1 - Namespace to set in the kubectl context.
 function set_argocd_cli() {
   local namespace="$1"
-  if ! kubectl config set-context --current --namespace="${namespace}" >/dev/null 2>&1; then
-    echo -e "${RED}❌ Failed to set kubectl context to namespace '${namespace}'${NC}"
-    return 1
+  
+  if ! is_kubectl_namespace_set "$namespace"; then
+    if ! kubectl config set-context --current --namespace="${namespace}" >/dev/null 2>&1; then
+      echo -e "${RED}❌ Failed to set kubectl context to namespace '${namespace}'${NC}"
+      return 1
+    fi
   fi
-  if ! argocd login cd.argoproj.io --core >/dev/null 2>&1; then
-    echo -e "${RED}❌ Failed to login to ArgoCD CLI in namespace '${namespace}'${NC}"
-    return 1
+
+  if ! is_argocd_logged_in; then
+    if ! argocd login cd.argoproj.io --core >/dev/null 2>&1; then
+      echo -e "${RED}❌ Failed to login to ArgoCD CLI in namespace '${namespace}'${NC}"
+      return 1
+    fi
   fi
 }
 
@@ -81,10 +104,5 @@ function with_argocd_cli() {
   "$@"
   local result=$?
   unset_argocd_cli
-  if [[ $result -ne 0 ]]; then
-    return $result
-  fi
-
-  # FIXME: Allow some time for the change to propagate.
-  sleep 5
+  return $result
 }
