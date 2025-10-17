@@ -53,6 +53,9 @@ function detect_helmv3() {
       chart_name=$(yq eval 'map(select(.status == "deployed")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v3_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
     fi
     echo "✅ Helm v3 release detected"
+    echo "- Manifest details 📄 --------------------------------------------------"
+    helmv3 get manifest "${release_name}" --namespace "${namespace}"
+    echo "------------------------------------------------------------------------"
     write_result "helmv3" "${chart_name:-}"
     return 0
   elif echo "${HELM_V3_OUTPUT}" | grep -q 'release: not found'; then
@@ -83,6 +86,9 @@ function detect_helmv2() {
       chart_name=$(yq eval 'map(select(.status == "DEPLOYED")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v2_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
     fi
     echo "✅ Helm v2 release detected"
+    echo "- Manifest details 📄 --------------------------------------------------"
+    helm get manifest "${release_name}"
+    echo "------------------------------------------------------------------------"
     write_result "helmv2" "${chart_name:-}"
     return 0
   elif echo "${HELM_V2_OUTPUT}" | grep -q 'not found' || echo "${HELM_V2_OUTPUT}" | grep -q 'release: ".*" not found'; then
