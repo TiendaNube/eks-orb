@@ -5,18 +5,20 @@
 # Usage: Set the following environment variables:
 #   RELEASE_NAME - The release name to check
 #   NAMESPACE - The namespace to check
-#   HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm_detection)
+#   HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm-detection)
 #
 # Returns:
 #   - Writes detected Helm version to ${HELM_DETECTION_DIR}/version
 #   - Writes chart name to ${HELM_DETECTION_DIR}/chart_name
+#   - Writes backup manifest to ${HELM_DETECTION_DIR}/helm_backup_manifest.yaml
 #   - Exit code 0 if successful or release not found (defaults to helmv3)
 #   - Exit code 1 if there was an error checking Helm versions
 
 # Constants
-DETECTION_DIR="${HELM_DETECTION_DIR:-/tmp/helm_detection}"
+DETECTION_DIR="${HELM_DETECTION_DIR:-/tmp/helm-detection}"
 VERSION_FILE="${DETECTION_DIR}/version"
 CHART_NAME_FILE="${DETECTION_DIR}/chart_name"
+BACKUP_MANIFEST_FILE="${DETECTION_DIR}/helm_backup_manifest.yaml"
 
 # Setup dedicated directory for all temp files
 function setup_temp_dir() {
@@ -53,8 +55,8 @@ function detect_helmv3() {
       chart_name=$(yq eval 'map(select(.status == "deployed")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v3_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
     fi
     echo "✅ Helm v3 release detected"
-    echo "📄 Manifest details ----------------------------------"
-    helmv3 get manifest "${release_name}" --namespace "${namespace}"
+    echo "📄 Manifest saved to ${BACKUP_MANIFEST_FILE}"
+    helmv3 get manifest "${release_name}" --namespace "${namespace}" > "${BACKUP_MANIFEST_FILE}"
     echo "------------------------------------------------------"
     write_result "helmv3" "${chart_name:-}"
     return 0
@@ -86,8 +88,8 @@ function detect_helmv2() {
       chart_name=$(yq eval 'map(select(.status == "DEPLOYED")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v2_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
     fi
     echo "✅ Helm v2 release detected"
-    echo "📄 Manifest details ----------------------------------"
-    helm get manifest "${release_name}"
+    echo "📄 Manifest saved to ${BACKUP_MANIFEST_FILE}"
+    helm get manifest "${release_name}" > "${BACKUP_MANIFEST_FILE}"
     echo "------------------------------------------------------"
     write_result "helmv2" "${chart_name:-}"
     return 0
@@ -172,7 +174,7 @@ function main() {
     echo "Please set the following environment variables:"
     echo "     RELEASE_NAME - The release name to check"
     echo "     NAMESPACE - The namespace to check"
-    echo "     HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm_detection)"
+    echo "     HELM_DETECTION_DIR - Directory to store detection results (default: /tmp/helm-detection)"
     exit 1
   fi
 

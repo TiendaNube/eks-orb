@@ -113,6 +113,7 @@ steps:
         echo "export NAMESPACE=<< parameters.namespace >>" | tee -a $BASH_ENV
         echo "export APPLICATION_NAMESPACE=argocd" | tee -a $BASH_ENV
         echo "export REPOSITORY_HTTP_URL=$REPOSITORY_HTTP_URL" | tee -a $BASH_ENV
+        echo "export HELM_DETECTION_DIR=/tmp/helm-detection" | tee -a $BASH_ENV
 
   - when:
       condition: << parameters.checkout >>
@@ -192,13 +193,18 @@ steps:
   - run:
       name: Detect old-school Helm version & chart name
       environment:
-        HELM_DETECTION_DIR: /tmp/helm-detection
       command: <<include(scripts/detect_helm_version.sh)>>
+
+  - when:
+      condition: test -f /tmp/helm-detection/helm_backup_manifest.yaml
+      steps:
+        - store_artifacts:
+            path: /tmp/helm-detection/helm_backup_manifest.yaml
+            destination: helm-backup-manifest
 
   - run:
       name: Validate old-school Helm chart name
       command: |
-        HELM_DETECTION_DIR=/tmp/helm-detection
         HELM_DETECTION_CHART_NAME_FILE=$HELM_DETECTION_DIR/chart_name
         previous_chart_name=$(cat $HELM_DETECTION_CHART_NAME_FILE)
         if [[ -n "$previous_chart_name" ]]; then
