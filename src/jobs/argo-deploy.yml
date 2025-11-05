@@ -195,9 +195,12 @@ steps:
       environment:
       command: <<include(scripts/detect_helm_version.sh)>>
 
-  - store_artifacts:
-      path: /tmp/helm-detection/helm_backup_manifest.yaml
-      destination: helm-backup-manifest
+  - when:
+      condition: test -f /tmp/helm-detection/helm_backup_manifest.yaml
+      steps:
+        - store_artifacts:
+            path: /tmp/helm-detection/helm_backup_manifest.yaml
+            destination: helm-backup-manifest
 
   - run:
       name: Validate old-school Helm chart name
