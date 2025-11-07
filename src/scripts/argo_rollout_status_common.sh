@@ -141,7 +141,7 @@ function exec_rollout_status() {
 
         # Enable auto sync with prune and self-heal
         if with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- \
-          argocd app set "${rollout_name}" --sync-policy automated --auto-prune --self-heal; then
+          argocd app set "${rollout_name}" --source-position 2 --sync-policy automated --auto-prune --self-heal; then
           echo -e "${GREEN}✅ Successfully enabled auto sync with prune and self-heal${NC}"
           echo -e "${BLUE}⏳ Waiting for sync to start...${NC}"
         else
