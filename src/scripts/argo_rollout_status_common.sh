@@ -136,12 +136,18 @@ function exec_rollout_status() {
         echo "$argocd_output" | jq -r '.spec.syncPolicy'
         echo "**********************************************************************"
         echo -e "${YELLOW}--------------------------------------------------------"
-        echo -e "${YELLOW}⚠️ WARNING: Auto sync is disabled${NC}"
-        echo -e "${YELLOW}You must visit the ArgoCD UI to enable this feature in order to apply the already launched rollout.${NC}"
-        echo -e "${YELLOW}Pay special attention to activating these TWO fields:${NC}"
-        echo -e "${YELLOW} - Prune${NC}"
-        echo -e "${YELLOW} - Self Heal${NC}"
+        echo -e "${YELLOW}⚠️ Auto sync is disabled. Enabling it automatically...${NC}"
         echo -e "${YELLOW}--------------------------------------------------------${NC}"
+
+        # Enable auto sync with prune and self-heal
+        if with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- \
+          argocd app set "${rollout_name}" --sync-policy automated --auto-prune --self-heal; then
+          echo -e "${GREEN}✅ Successfully enabled auto sync with prune and self-heal${NC}"
+          echo -e "${BLUE}⏳ Waiting for sync to start...${NC}"
+        else
+          echo -e "${RED}❌ Failed to enable auto sync. Please check ArgoCD permissions.${NC}"
+          return 1
+        fi
       else
         case "$rollout_status" in
           Healthy|Completed)
