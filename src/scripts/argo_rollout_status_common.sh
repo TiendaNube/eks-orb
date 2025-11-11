@@ -83,8 +83,9 @@ function exec_rollout_status() {
     local auto_sync_prune="$3"
 
     # If at least one of the `syncPolicy.automated.[enabled|selfHeal|prune]` fields is disabled, this function returns true.
-    # $auto_sync_status == "false" is currently not used because it's not consistent throughout every ArgoCD Application JSON response.
-    [[ $auto_sync_self_heal == "false" || $auto_sync_prune == "false" ]]
+    {
+      [[ $auto_sync_status == "false" ]] || [[ $auto_sync_self_heal == "false" ]] || [[ $auto_sync_prune == "false" ]]
+    }
   }
 
   #shellcheck disable=SC2329
