@@ -78,17 +78,13 @@ function exec_rollout_status() {
 
   #shellcheck disable=SC2329
   function rollout_is_auto_sync_disabled() {
-    local sync_status="$1"
-    local auto_sync_status="$2"
-    local auto_sync_self_heal="$3"
-    local auto_sync_prune="$4"
+    local auto_sync_status="$1"
+    local auto_sync_self_heal="$2"
+    local auto_sync_prune="$3"
 
     # If at least one of the `syncPolicy.automated.[enabled|selfHeal|prune]` fields is disabled, this function returns true.
     # $auto_sync_status == "false" is currently not used because it's not consistent throughout every ArgoCD Application JSON response.
-    { 
-      [[ $sync_status == "OutOfSync" ]] &&
-      [[ $auto_sync_self_heal == "false" || $auto_sync_prune == "false" ]]
-    }
+    [[ $auto_sync_self_heal == "false" || $auto_sync_prune == "false" ]]
   }
 
   #shellcheck disable=SC2329
@@ -131,12 +127,12 @@ function exec_rollout_status() {
       if rollout_is_progressing "$rollout_status" "$sync_status" "$health_status" "$operation_phase"; then
         echo -e "${BLUE}⏳ Waiting... Rollout status is [$rollout_status].${NC}"
         echo -e "${BLUE}Application Sync status [$sync_status]; Health status [$health_status]; Operation phase [$operation_phase].${NC}"
-      elif rollout_is_auto_sync_disabled "$sync_status" "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
+      elif rollout_is_auto_sync_disabled "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
         echo "**********************************************************************"
         echo "$argocd_output" | jq -r '.spec.syncPolicy'
         echo "**********************************************************************"
         echo -e "${YELLOW}--------------------------------------------------------"
-        echo -e "${YELLOW}⚠️ Auto sync is disabled. Enabling it automatically...${NC}"
+        echo -e "${YELLOW}⚠️ Auto sync is disabled. Enabling it manually...${NC}"
         echo -e "${YELLOW}--------------------------------------------------------${NC}"
 
         # Enable auto sync with prune and self-heal
