@@ -146,7 +146,7 @@ workflows:
             --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
-            --set-string env.DUMMY_ENV_VAR="dummy-value-1" \
+            --set-string env.DUMMY_ENV_VAR="dummy-value-2" \
           requires: [staging-argo-deploy-approval]
           filters: *filter-staging
   staging-helmv3-test-and-deploy:
