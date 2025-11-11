@@ -79,9 +79,7 @@ function exec_rollout_status() {
   #shellcheck disable=SC2329
   function get_auto_sync_enabled() {
     local argocd_output="$1"
-    local auto_sync_prune="$2"
-    local auto_sync_self_heal="$3"
-    local enabled_exists enabled_value
+    local enabled_exists enabled_value auto_sync_prune auto_sync_self_heal
 
     # Check if automated.enabled field exists and is not null
     enabled_exists=$(echo "$argocd_output" | jq -r 'if .spec.syncPolicy.automated.enabled != null then "true" else "false" end')
@@ -93,6 +91,8 @@ function exec_rollout_status() {
       return
     fi
 
+    auto_sync_prune=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.prune // "false"')
+    auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
     # If enabled is not present, check if both prune and selfHeal are true
     if [[ "$auto_sync_prune" == "true" ]] && [[ "$auto_sync_self_heal" == "true" ]]; then
       echo "true"
@@ -148,9 +148,9 @@ function exec_rollout_status() {
       operation_phase=$(echo "$argocd_output" | jq -r '.status.operationState.phase // "None"')
       sync_status=$(echo "$argocd_output" | jq -r '.status.sync.status // "Unknown"')
       health_status=$(echo "$argocd_output" | jq -r '.status.health.status // "Unknown"')
+      auto_sync_status=$(get_auto_sync_enabled "$argocd_output")
       auto_sync_prune=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.prune // "false"')
       auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
-      auto_sync_status=$(get_auto_sync_enabled "$argocd_output" "$auto_sync_prune" "$auto_sync_self_heal")
 
       if rollout_is_progressing "$rollout_status" "$sync_status" "$health_status" "$operation_phase"; then
         echo -e "${BLUE}⏳ Waiting... Rollout status is [$rollout_status].${NC}"
