@@ -3,6 +3,7 @@
 # Script to check the status of an Argo Rollout release
 #
 # Usage: Set the following environment variables:
+#   PROJECT_REPO_NAME             - The project repository name
 #   ROLLOUT_NAME                  - The rollout name to check
 #   NAMESPACE                     - The namespace to check
 #   ROLLOUT_STATUS_TIMEOUT        - Timeout in seconds
@@ -44,6 +45,7 @@ done
 exec_rollout_status \
   --rollout-name "${ROLLOUT_NAME}" \
   --namespace "${NAMESPACE}" \
+  --project-repo-name "${PROJECT_REPO_NAME}" \
   --timeout "${ROLLOUT_STATUS_TIMEOUT}" \
   --interval "${ROLLOUT_STATUS_CHECK_INTERVAL}"
 

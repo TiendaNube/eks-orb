@@ -35,7 +35,7 @@ fi
 
 # Main entrypoint
 function exec_rollout_status() {
-  local rollout_name="" namespace="" rollout_status_timeout="" rollout_status_check_interval=""
+  local rollout_name="" namespace="" rollout_status_timeout="" rollout_status_check_interval="" project_repo_name=""
 
   if [[ -z "${APPLICATION_NAMESPACE}" ]]; then
     echo -e "${RED}❌ Error: APPLICATION_NAMESPACE environment variable is required.${NC}"
@@ -47,6 +47,7 @@ function exec_rollout_status() {
     case "$1" in
       --rollout-name) rollout_name="$2"; shift 2 ;;
       --namespace) namespace="$2"; shift 2 ;;
+      --project-repo-name) project_repo_name="$2"; shift 2 ;;
       --timeout) rollout_status_timeout="$2"; shift 2 ;;
       --interval) rollout_status_check_interval="$2"; shift 2 ;;
       --) shift; break ;;
@@ -55,9 +56,10 @@ function exec_rollout_status() {
   done
 
   # Check required flags
-  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_status_timeout" ]] || [[ -z "$rollout_status_check_interval" ]]; then
-    echo -e "${RED}Error: --rollout-name, --namespace, --timeout, and --interval are required.${NC}"
-    echo -e "Usage: $0 --rollout-name <name> --namespace <ns> --timeout <1m> --interval <10>"
+  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]] || [[ -z "$project_repo_name" ]] || 
+     [[ -z "$rollout_status_timeout" ]] || [[ -z "$rollout_status_check_interval" ]]; then
+    echo -e "${RED}Error: --rollout-name, --namespace, --project-repo-name, --timeout, and --interval are required.${NC}"
+    echo -e "Usage: $0 --rollout-name <name> --namespace <ns> --project-repo-name <repo> --timeout <1m> --interval <10>"
     return 2
   fi
 
@@ -165,7 +167,7 @@ function exec_rollout_status() {
 
         # Enable auto sync with prune and self-heal
         if with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- \
-          argocd app set "${rollout_name}" --source-position 2 --sync-policy automated --auto-prune --self-heal; then
+          argocd app set "${rollout_name}" --source-name "${project_repo_name}" --sync-policy automated --auto-prune --self-heal; then
           echo -e "${GREEN}✅ Successfully enabled auto sync with prune and self-heal${NC}"
           echo -e "${BLUE}⏳ Waiting for sync to start...${NC}"
         else
@@ -210,7 +212,7 @@ function exec_rollout_status() {
   print_header
 
   # Export variables needed by the subshell invoked by timeout.
-  export rollout_name namespace rollout_status_timeout rollout_status_check_interval
+  export rollout_name namespace project_repo_name rollout_status_timeout rollout_status_check_interval
   export GREEN BLUE YELLOW RED NC
 
   local timeout_result=0

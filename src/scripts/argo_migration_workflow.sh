@@ -156,6 +156,7 @@ function handle_feedback_decision() {
     exec_rollout_status \
       --rollout-name "${rollout_name}" \
       --namespace "${namespace}" \
+      --project-repo-name "${project_repo_name}" \
       --timeout "${rollout_status_timeout}" \
       --interval "${rollout_status_check_interval}"
   }
@@ -205,7 +206,7 @@ function await_and_apply_feedback() {
   # Parse flags
   current_phase="" next_phase="" namespace="" application_name="" application_namespace="" profile_name="" rollout_name=""
   feedback_annotation_key="" feedback_check_interval="" feedback_timeout=""
-  rollout_status_timeout="" rollout_status_check_interval=""
+  rollout_status_timeout="" rollout_status_check_interval="" project_repo_name=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -214,6 +215,7 @@ function await_and_apply_feedback() {
       --namespace) namespace="$2"; shift 2 ;;
       --application-name) application_name="$2"; shift 2 ;;
       --application-namespace) application_namespace="$2"; shift 2 ;;
+      --project-repo-name) project_repo_name="$2"; shift 2 ;;
       --rollout-status-timeout) rollout_status_timeout="$2"; shift 2 ;;
       --rollout-status-check-interval) rollout_status_check_interval="$2"; shift 2 ;;
       --rollout-name) rollout_name="$2"; shift 2 ;;
@@ -249,7 +251,7 @@ function await_and_apply_feedback() {
   set +e
 
   # Export variables needed by the subshell invoked by timeout.
-  export current_phase next_phase namespace application_name application_namespace profile_name rollout_name
+  export current_phase next_phase namespace application_name application_namespace profile_name rollout_name project_repo_name
   export feedback_annotation_key feedback_check_interval feedback_timeout
   export rollout_status_timeout rollout_status_check_interval
   export RED GREEN YELLOW BLUE NC
@@ -278,6 +280,7 @@ EOF
 # Reads required variables from the environment.
 function exec_migration_workflow() {
 
+  local project_repo_name="${PROJECT_REPO_NAME}"
   local application_name="${APPLICATION_NAME}"
   local namespace="${NAMESPACE}"
   local canary_migration_phase="${CANARY_MIGRATION_PHASE}"
@@ -316,6 +319,7 @@ function exec_migration_workflow() {
   echo -e "${BLUE}🔍 Migration Workflow Context:${NC}"
   echo "   - Application Name:              ${application_name}"
   echo "   - Namespace:                     ${namespace}"
+  echo "   - Project Repository Name:       ${project_repo_name}"
   echo "   - Profile Name:                  ${profile_name}"
   echo "   - Rollout Name:                  ${rollout_name}"
   echo "   - Application Namespace:         ${application_namespace}"
@@ -380,6 +384,7 @@ function exec_migration_workflow() {
     --application-namespace "$application_namespace" \
     --namespace "$namespace" \
     --application-name "$application_name" \
+    --project-repo-name "$project_repo_name" \
     --profile-name "$profile_name" \
     --rollout-name "$rollout_name" \
     --rollout-status-timeout "$rollout_status_timeout" \
