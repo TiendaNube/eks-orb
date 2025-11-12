@@ -366,6 +366,7 @@ function exec_migration_workflow() {
       --application-namespace "$application_namespace" \
       --namespace "$namespace" \
       --application-name "$application_name" \
+      --project-repo-name "$project_repo_name" \
       --profile-name "$profile_name" \
       --rollout-name "$rollout_name" \
       --rollout-status-timeout "$rollout_status_timeout" \
