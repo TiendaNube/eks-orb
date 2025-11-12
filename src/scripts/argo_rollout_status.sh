@@ -3,13 +3,13 @@
 # Script to check the status of an Argo Rollout release
 #
 # Usage: Set the following environment variables:
-#   PROJECT_REPO_NAME             - The project repository name
 #   ROLLOUT_NAME                  - The rollout name to check
 #   NAMESPACE                     - The namespace to check
 #   ROLLOUT_STATUS_TIMEOUT        - Timeout in seconds
 #   ROLLOUT_STATUS_CHECK_INTERVAL - Interval between checks in seconds
 #   ROLLOUT_STATUS_COMMON_SCRIPT  - The script to source for reusable status check functions
 #   ARGO_CLI_COMMON_SCRIPT        - The script to source for reusable Argo CLI functions
+#   CIRCLE_PROJECT_REPONAME       - This script relies on the CircleCI built-in project repository name
 #
 # Returns:
 #   - Exit code 0 if rollout is Healthy or Completed, or if timeout is reached

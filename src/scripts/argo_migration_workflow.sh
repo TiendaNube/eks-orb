@@ -1,5 +1,17 @@
 #!/bin/bash
 
+# Script to drive the ArgoCD migration workflow
+#
+# Usage: Set the following environment variables:
+#   ROLLOUT_STATUS_COMMON_SCRIPT  - The script to source for reusable status check functions
+#   ARGO_CLI_COMMON_SCRIPT        - The script to source for reusable Argo CLI functions
+#   CIRCLE_PROJECT_REPONAME       - This script relies on the CircleCI built-in project repository name
+#
+# Returns:
+#   - Exit code 0 if migration workflow completes successfully
+#   - Exit code 1 if migration workflow aborted due to rollback
+#   - Exit code 2 if execution requirements are not met (missing command tools or environment variables)
+
 # --- Color codes for output ---
 RED="\033[0;31m"
 GREEN="\033[0;32m"
