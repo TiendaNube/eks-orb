@@ -255,7 +255,6 @@ steps:
         - run:
             name: Triggers the ArgoCD migration workflow
             environment:
-              PROJECT_REPO_NAME: ${CIRCLE_PROJECT_REPONAME}
               ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
               ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
               ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>

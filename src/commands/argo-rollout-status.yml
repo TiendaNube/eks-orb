@@ -14,7 +14,6 @@ steps:
   - run:
       name: Check Argo rollout status
       environment:
-        PROJECT_REPO_NAME: ${CIRCLE_PROJECT_REPONAME}
         ROLLOUT_STATUS_TIMEOUT: << parameters.timeout >>
         ROLLOUT_STATUS_CHECK_INTERVAL: << parameters.check-interval >>
         ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>

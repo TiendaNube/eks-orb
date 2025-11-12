@@ -16,6 +16,10 @@ if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
   echo -e "${RED}❌ Error: ARGO_CLI_COMMON_SCRIPT is empty${NC}"
   exit 2
 fi
+if [[ -z "${CIRCLE_PROJECT_REPONAME:-}" ]]; then
+  echo -e "${RED}❌ Error: CIRCLE_PROJECT_REPONAME is empty${NC}" >&2
+  exit 2
+fi
 
 # --- Validate required dependencies ---
 for cmd in yq kubectl timeout; do
@@ -280,7 +284,7 @@ EOF
 # Reads required variables from the environment.
 function exec_migration_workflow() {
 
-  local project_repo_name="${PROJECT_REPO_NAME}"
+  local project_repo_name="${CIRCLE_PROJECT_REPONAME}"
   local application_name="${APPLICATION_NAME}"
   local namespace="${NAMESPACE}"
   local canary_migration_phase="${CANARY_MIGRATION_PHASE}"

@@ -30,6 +30,11 @@ if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
   exit 2
 fi
 
+if [[ -z "${CIRCLE_PROJECT_REPONAME:-}" ]]; then
+  echo -e "${RED}❌ Error: CIRCLE_PROJECT_REPONAME is empty${NC}" >&2
+  exit 2
+fi
+
 #shellcheck disable=SC1090
 source <(echo "${ROLLOUT_STATUS_COMMON_SCRIPT}")
 
@@ -45,7 +50,7 @@ done
 exec_rollout_status \
   --rollout-name "${ROLLOUT_NAME}" \
   --namespace "${NAMESPACE}" \
-  --project-repo-name "${PROJECT_REPO_NAME}" \
+  --project-repo-name "${CIRCLE_PROJECT_REPONAME}" \
   --timeout "${ROLLOUT_STATUS_TIMEOUT}" \
   --interval "${ROLLOUT_STATUS_CHECK_INTERVAL}"
 
