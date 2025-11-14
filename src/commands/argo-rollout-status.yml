@@ -1,6 +1,10 @@
 description: Allows use the argo client to check the status of a rollout
 
 parameters:
+  cluster-name:
+    type: string
+  aws-region:
+    type: string
   check-interval:
     description: Number of seconds to wait between status checks
     type: integer
@@ -16,6 +20,9 @@ steps:
       environment:
         ROLLOUT_STATUS_TIMEOUT: << parameters.timeout >>
         ROLLOUT_STATUS_CHECK_INTERVAL: << parameters.check-interval >>
+        CLUSTER_NAME: << parameters.cluster-name >>
+        AWS_REGION: << parameters.aws-region >>
         ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
         ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
+        UPDATE_KUBECONFIG_COMMON_SCRIPT: << include(scripts/update_kubeconfig_common.sh) >>
       command: << include(scripts/argo_rollout_status.sh) >>

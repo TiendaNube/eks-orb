@@ -234,6 +234,8 @@ steps:
       mesh: << parameters.mesh >>
 
   - argo-deploy-application:
+      cluster-name: << parameters.cluster-name >>
+      aws-region: << parameters.region >>
       release-name: << parameters.release-name >>
       values-file: << parameters.values-file >>
       namespace: << parameters.namespace >>
@@ -255,9 +257,12 @@ steps:
         - run:
             name: Triggers the ArgoCD migration workflow
             environment:
+              CLUSTER_NAME: << parameters.cluster-name >>
+              AWS_REGION: << parameters.region >>
               ROLLOUT_STATUS_TIMEOUT: << parameters.rollout-status-timeout >>
               ROLLOUT_STATUS_COMMON_SCRIPT: << include(scripts/argo_rollout_status_common.sh) >>
               ARGO_CLI_COMMON_SCRIPT: << include(scripts/argo_cli_common.sh) >>
+              UPDATE_KUBECONFIG_COMMON_SCRIPT: << include(scripts/update_kubeconfig_common.sh) >>
               FEEDBACK_TIMEOUT: << parameters.argocd-migration-feedback-timeout >>
               FEEDBACK_ANNOTATION_KEY: migration.argocd.io/approval-next-phase
               FEEDBACK_CHECK_INTERVAL: 10

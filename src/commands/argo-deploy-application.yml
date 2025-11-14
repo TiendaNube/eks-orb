@@ -2,6 +2,10 @@ description: |
   Generate an ArgoCD Application from a Helm chart.
 
 parameters:
+  cluster-name:
+    type: string
+  aws-region:
+    type: string
   release-name:
     type: string
   values-file:
@@ -240,3 +244,5 @@ steps:
       steps:
         - argo-rollout-status:
             timeout: << parameters.rollout-status-timeout >>
+            cluster-name: << parameters.cluster-name >>
+            aws-region: << parameters.aws-region >>

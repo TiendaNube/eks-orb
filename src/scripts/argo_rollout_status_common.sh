@@ -6,7 +6,8 @@
 #   ./argo_rollout_status_common.sh --rollout-name <name> --namespace <ns> --timeout <1m> --interval <10>
 #
 #   Set the following environment variables:
-#   - ARGO_CLI_COMMON_SCRIPT - The script to source for reusable Argo CLI functions
+#   - ARGO_CLI_COMMON_SCRIPT           - The script to source for reusable Argo CLI functions
+#   - UPDATE_KUBECONFIG_COMMON_SCRIPT  - The script to source for reusable kubeconfig functions
 #
 # Returns:
 #   - Exit code 0 if rollout is Healthy or Completed, or if timeout is reached
@@ -30,6 +31,19 @@ source <(echo "${ARGO_CLI_COMMON_SCRIPT}")
 
 if ! declare -f "with_argocd_cli" > /dev/null; then
   echo -e "${RED}❌ Error: with_argocd_cli function is not defined in subshell${NC}" >&2
+  exit 2
+fi
+
+if [[ -z "${UPDATE_KUBECONFIG_COMMON_SCRIPT:-}" ]]; then
+  echo -e "${RED}❌ Error: UPDATE_KUBECONFIG_COMMON_SCRIPT is empty${NC}" >&2
+  exit 2
+fi
+
+#shellcheck disable=SC1090
+source <(echo "${UPDATE_KUBECONFIG_COMMON_SCRIPT}")
+
+if ! declare -f "update_kubeconfig" > /dev/null; then
+  echo -e "${RED}❌ Error: update_kubeconfig function is defined in subshell.${NC}" >&2
   exit 2
 fi
 
@@ -105,6 +119,80 @@ function exec_rollout_status() {
     }
   }
 
+  #shellcheck disable=SC2329
+  function is_auth_error() {
+    local error_output="$1"
+    # Check for common authentication/token expiration error patterns
+    {
+      [[ "$error_output" =~ [Uu]nauthorized ]] ||
+      [[ "$error_output" =~ [Tt]oken.*[Ee]xpired ]] ||
+      [[ "$error_output" =~ [Aa]uthentication.*[Ff]ailed ]] ||
+      [[ "$error_output" =~ [Yy]ou.*must.*be.*logged.*in ]] ||
+      [[ "$error_output" =~ [Ee]rror.*from.*server.*\(.*401.*\) ]] ||
+      [[ "$error_output" =~ [Ee]rror.*from.*server.*\(.*Forbidden.*\) ]] ||
+      [[ "$error_output" =~ [Aa]ccess.*[Dd]enied ]]
+    }
+  }
+
+  #shellcheck disable=SC2329
+  function refresh_kubeconfig() {
+    echo -e "${BLUE}🔄 Attempting to refresh kubeconfig...${NC}"
+
+    if update_kubeconfig; then
+      echo -e "${GREEN}✅ Kubeconfig refreshed successfully${NC}"
+      return 0
+    else
+      echo -e "${RED}❌ Failed to refresh kubeconfig${NC}" >&2
+      return 1
+    fi
+  }
+
+  #shellcheck disable=SC2329
+  function get_kubectl_argo_rollout() {
+    local rollout_name="$1"
+    local namespace="$2"
+    local kubectl_output kubectl_exit_code=0
+    local max_retries=3
+    local attempt=1
+
+    while [[ $attempt -le $max_retries ]]; do
+      kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) || kubectl_exit_code=$?
+
+      if [[ $kubectl_exit_code -eq 0 ]]; then
+        echo "$kubectl_output"
+        return 0
+      fi
+
+      if is_auth_error "$kubectl_output"; then
+        # Check if we have retries left (the loop condition handles the limit, but we check here
+        # to avoid unnecessary kubeconfig refresh on the last attempt)
+        if [[ $attempt -lt $max_retries ]]; then
+          echo -e "${BLUE}🔄 Authentication error detected (attempt $attempt/$max_retries). Refreshing kubeconfig...${NC}"
+          if refresh_kubeconfig; then
+            attempt=$((attempt + 1))
+            echo -e "${BLUE}🔄 Retrying kubectl command after kubeconfig refresh...${NC}"
+            continue
+          else
+            echo -e "${RED}❌ Failed to refresh kubeconfig. Cannot continue.${NC}" >&2
+            return 2
+          fi
+        fi
+        # If we've exhausted all retries, return error
+        echo -e "${RED}❌ kubectl command failed after $max_retries attempts:${NC}" >&2
+        echo "$kubectl_output" >&2
+        return 2
+      else
+        echo -e "${RED}❌ kubectl command failed (non-authentication error):${NC}" >&2
+        echo "$kubectl_output" >&2
+        return 2
+      fi
+    done
+
+    # Should not reach here, but just in case
+    echo -e "${RED}❌ kubectl command failed after $max_retries attempts${NC}" >&2
+    return 2
+  }
+
   # Main status check loop
   #shellcheck disable=SC2329
   function check_rollout_status() {
@@ -114,9 +202,9 @@ function exec_rollout_status() {
     while true; do
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
-      # Get kubectl rollout status
-      kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}")
-      echo "$kubectl_output"
+      # Get kubectl rollout status (handles errors and retries internally)
+      kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
+      
       rollout_status=$(echo "$kubectl_output" | grep "^Status:" | awk '{print $3}')
 
       # Get application status
@@ -168,6 +256,8 @@ function exec_rollout_status() {
   function print_header() {
     echo "========================================================"
     echo "🔍 Checking Argo Rollout status for:"
+    echo "   - Cluster: ${CLUSTER_NAME}"
+    echo "   - Region: ${AWS_REGION}"
     echo "   - Rollout: ${rollout_name}"
     echo "   - Namespace: ${namespace}"
     echo "   - Timeout: ${rollout_status_timeout}"
@@ -182,11 +272,14 @@ function exec_rollout_status() {
   # Export variables needed by the subshell invoked by timeout.
   export rollout_name namespace rollout_status_timeout rollout_status_check_interval
   export GREEN BLUE YELLOW RED NC
+  export CLUSTER_NAME AWS_REGION
 
   local timeout_result=0
   timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f print_rollout_status_result rollout_is_progressing rollout_is_auto_sync_disabled)
+  $(declare -f is_auth_error refresh_kubeconfig get_kubectl_argo_rollout)
   $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
+  $(declare -f update_kubeconfig)
   $(declare -f check_rollout_status)
   check_rollout_status
 EOF
