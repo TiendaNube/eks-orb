@@ -120,9 +120,8 @@ function exec_rollout_status() {
   #shellcheck disable=SC2329
   function rollout_is_progressing() {
     local rollout_status="$1"
-    local sync_status="$2"
-    local health_status="$3"
-    local operation_phase="$4"
+    local health_status="$2"
+    local operation_phase="$3"
 
     {
       [[ $rollout_status =~ ^(Progressing|Paused)$ ]] ||
@@ -154,7 +153,7 @@ function exec_rollout_status() {
       auto_sync_prune=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.prune // "false"')
       auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
 
-      if rollout_is_progressing "$rollout_status" "$sync_status" "$health_status" "$operation_phase"; then
+      if rollout_is_progressing "$rollout_status" "$health_status" "$operation_phase"; then
         echo -e "${BLUE}⏳ Waiting... Rollout status is [$rollout_status].${NC}"
         echo -e "${BLUE}Application Sync status [$sync_status]; Health status [$health_status]; Operation phase [$operation_phase].${NC}"
       elif rollout_is_auto_sync_disabled "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
