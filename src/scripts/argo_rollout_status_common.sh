@@ -30,7 +30,7 @@ fi
 source <(echo "${ARGO_CLI_COMMON_SCRIPT}")
 
 if ! declare -f "with_argocd_cli" > /dev/null; then
-  echo -e "${RED}❌ Error: with_argocd_cli function is not defined in subshell${NC}" >&2
+  echo -e "${RED}❌ Error: with_argocd_cli function is not defined.${NC}" >&2
   exit 2
 fi
 
@@ -43,7 +43,7 @@ fi
 source <(echo "${UPDATE_KUBECONFIG_COMMON_SCRIPT}")
 
 if ! declare -f "update_kubeconfig" > /dev/null; then
-  echo -e "${RED}❌ Error: update_kubeconfig function is defined in subshell.${NC}" >&2
+  echo -e "${RED}❌ Error: update_kubeconfig function is defined.${NC}" >&2
   exit 2
 fi
 
@@ -242,6 +242,7 @@ function exec_rollout_status() {
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
       # Get kubectl rollout status (handles errors and retries internally)
       kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
+      echo "$kubectl_output"
 
       rollout_status=$(echo "$kubectl_output" | grep "^Status:" | awk '{print $3}')
 
