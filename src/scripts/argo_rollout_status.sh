@@ -9,6 +9,7 @@
 #   ROLLOUT_STATUS_CHECK_INTERVAL - Interval between checks in seconds
 #   ROLLOUT_STATUS_COMMON_SCRIPT  - The script to source for reusable status check functions
 #   ARGO_CLI_COMMON_SCRIPT        - The script to source for reusable Argo CLI functions
+#   CIRCLE_PROJECT_REPONAME       - This script relies on the CircleCI built-in project repository name
 #
 # Returns:
 #   - Exit code 0 if rollout is Healthy or Completed, or if timeout is reached
@@ -29,6 +30,11 @@ if [[ -z "${ARGO_CLI_COMMON_SCRIPT:-}" ]]; then
   exit 2
 fi
 
+if [[ -z "${CIRCLE_PROJECT_REPONAME:-}" ]]; then
+  echo -e "${RED}❌ Error: CIRCLE_PROJECT_REPONAME is empty${NC}" >&2
+  exit 2
+fi
+
 #shellcheck disable=SC1090
 source <(echo "${ROLLOUT_STATUS_COMMON_SCRIPT}")
 
@@ -44,6 +50,7 @@ done
 exec_rollout_status \
   --rollout-name "${ROLLOUT_NAME}" \
   --namespace "${NAMESPACE}" \
+  --project-repo-name "${CIRCLE_PROJECT_REPONAME}" \
   --timeout "${ROLLOUT_STATUS_TIMEOUT}" \
   --interval "${ROLLOUT_STATUS_CHECK_INTERVAL}"
 

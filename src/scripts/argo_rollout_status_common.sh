@@ -35,7 +35,7 @@ fi
 
 # Main entrypoint
 function exec_rollout_status() {
-  local rollout_name="" namespace="" rollout_status_timeout="" rollout_status_check_interval=""
+  local rollout_name="" namespace="" rollout_status_timeout="" rollout_status_check_interval="" project_repo_name=""
 
   if [[ -z "${APPLICATION_NAMESPACE}" ]]; then
     echo -e "${RED}❌ Error: APPLICATION_NAMESPACE environment variable is required.${NC}"
@@ -47,6 +47,7 @@ function exec_rollout_status() {
     case "$1" in
       --rollout-name) rollout_name="$2"; shift 2 ;;
       --namespace) namespace="$2"; shift 2 ;;
+      --project-repo-name) project_repo_name="$2"; shift 2 ;;
       --timeout) rollout_status_timeout="$2"; shift 2 ;;
       --interval) rollout_status_check_interval="$2"; shift 2 ;;
       --) shift; break ;;
@@ -55,9 +56,10 @@ function exec_rollout_status() {
   done
 
   # Check required flags
-  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]] || [[ -z "$rollout_status_timeout" ]] || [[ -z "$rollout_status_check_interval" ]]; then
-    echo -e "${RED}Error: --rollout-name, --namespace, --timeout, and --interval are required.${NC}"
-    echo -e "Usage: $0 --rollout-name <name> --namespace <ns> --timeout <1m> --interval <10>"
+  if [[ -z "$rollout_name" ]] || [[ -z "$namespace" ]] || [[ -z "$project_repo_name" ]] || 
+     [[ -z "$rollout_status_timeout" ]] || [[ -z "$rollout_status_check_interval" ]]; then
+    echo -e "${RED}Error: --rollout-name, --namespace, --project-repo-name, --timeout, and --interval are required.${NC}"
+    echo -e "Usage: $0 --rollout-name <name> --namespace <ns> --project-repo-name <repo> --timeout <1m> --interval <10>"
     return 2
   fi
 
@@ -77,26 +79,49 @@ function exec_rollout_status() {
   }
 
   #shellcheck disable=SC2329
+  function get_auto_sync_enabled() {
+    local argocd_output="$1"
+    local enabled_exists enabled_value auto_sync_prune auto_sync_self_heal
+
+    # Check if automated.enabled field exists and is not null
+    enabled_exists=$(echo "$argocd_output" | jq -r 'if .spec.syncPolicy.automated.enabled != null then "true" else "false" end')
+    
+    # If enabled field exists and is not null, use that value
+    if [[ "$enabled_exists" == "true" ]]; then
+      enabled_value=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.enabled')
+      echo "$enabled_value"
+      return
+    fi
+
+    auto_sync_prune=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.prune // "false"')
+    auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
+    # If enabled is not present, check if both prune and selfHeal are true
+    if [[ "$auto_sync_prune" == "true" ]] && [[ "$auto_sync_self_heal" == "true" ]]; then
+      echo "true"
+      return
+    fi
+
+    # Any other case returns false
+    echo "false"
+  }
+
+  #shellcheck disable=SC2329
   function rollout_is_auto_sync_disabled() {
-    local sync_status="$1"
-    local auto_sync_status="$2"
-    local auto_sync_self_heal="$3"
-    local auto_sync_prune="$4"
+    local auto_sync_status="$1"
+    local auto_sync_self_heal="$2"
+    local auto_sync_prune="$3"
 
     # If at least one of the `syncPolicy.automated.[enabled|selfHeal|prune]` fields is disabled, this function returns true.
-    # $auto_sync_status == "false" is currently not used because it's not consistent throughout every ArgoCD Application JSON response.
-    { 
-      [[ $sync_status == "OutOfSync" ]] &&
-      [[ $auto_sync_self_heal == "false" || $auto_sync_prune == "false" ]]
+    {
+      [[ $auto_sync_status == "false" ]] || [[ $auto_sync_self_heal == "false" ]] || [[ $auto_sync_prune == "false" ]]
     }
   }
 
   #shellcheck disable=SC2329
   function rollout_is_progressing() {
     local rollout_status="$1"
-    local sync_status="$2"
-    local health_status="$3"
-    local operation_phase="$4"
+    local health_status="$2"
+    local operation_phase="$3"
 
     {
       [[ $rollout_status =~ ^(Progressing|Paused)$ ]] ||
@@ -124,24 +149,30 @@ function exec_rollout_status() {
       operation_phase=$(echo "$argocd_output" | jq -r '.status.operationState.phase // "None"')
       sync_status=$(echo "$argocd_output" | jq -r '.status.sync.status // "Unknown"')
       health_status=$(echo "$argocd_output" | jq -r '.status.health.status // "Unknown"')
-      auto_sync_status=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.enabled // "false"')
-      auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
+      auto_sync_status=$(get_auto_sync_enabled "$argocd_output")
       auto_sync_prune=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.prune // "false"')
+      auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
 
-      if rollout_is_progressing "$rollout_status" "$sync_status" "$health_status" "$operation_phase"; then
+      if rollout_is_progressing "$rollout_status" "$health_status" "$operation_phase"; then
         echo -e "${BLUE}⏳ Waiting... Rollout status is [$rollout_status].${NC}"
         echo -e "${BLUE}Application Sync status [$sync_status]; Health status [$health_status]; Operation phase [$operation_phase].${NC}"
-      elif rollout_is_auto_sync_disabled "$sync_status" "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
+      elif rollout_is_auto_sync_disabled "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
         echo "**********************************************************************"
         echo "$argocd_output" | jq -r '.spec.syncPolicy'
         echo "**********************************************************************"
         echo -e "${YELLOW}--------------------------------------------------------"
-        echo -e "${YELLOW}⚠️ WARNING: Auto sync is disabled${NC}"
-        echo -e "${YELLOW}You must visit the ArgoCD UI to enable this feature in order to apply the already launched rollout.${NC}"
-        echo -e "${YELLOW}Pay special attention to activating these TWO fields:${NC}"
-        echo -e "${YELLOW} - Prune${NC}"
-        echo -e "${YELLOW} - Self Heal${NC}"
+        echo -e "${YELLOW}⚠️ Auto sync is disabled. Enabling it manually...${NC}"
         echo -e "${YELLOW}--------------------------------------------------------${NC}"
+
+        # Enable auto sync with prune and self-heal
+        if with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- \
+          argocd app set "${rollout_name}" --source-name "${project_repo_name}" --sync-policy automated --auto-prune --self-heal; then
+          echo -e "${GREEN}✅ Successfully enabled auto sync with prune and self-heal${NC}"
+          echo -e "${BLUE}⏳ Waiting for sync to start...${NC}"
+        else
+          echo -e "${RED}❌ Failed to enable auto sync. Please check ArgoCD permissions.${NC}"
+          return 1
+        fi
       else
         case "$rollout_status" in
           Healthy|Completed)
@@ -180,12 +211,12 @@ function exec_rollout_status() {
   print_header
 
   # Export variables needed by the subshell invoked by timeout.
-  export rollout_name namespace rollout_status_timeout rollout_status_check_interval
+  export rollout_name namespace project_repo_name rollout_status_timeout rollout_status_check_interval
   export GREEN BLUE YELLOW RED NC
 
   local timeout_result=0
   timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
-  $(declare -f print_rollout_status_result rollout_is_progressing rollout_is_auto_sync_disabled)
+  $(declare -f print_rollout_status_result rollout_is_progressing rollout_is_auto_sync_disabled get_auto_sync_enabled)
   $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
   $(declare -f check_rollout_status)
   check_rollout_status
