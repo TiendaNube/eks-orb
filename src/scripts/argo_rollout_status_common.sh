@@ -160,6 +160,17 @@ function exec_rollout_status() {
   }
 
   #shellcheck disable=SC2329
+  function is_not_found_error() {
+    local error_output="$1"
+    # Check for "not found" error patterns
+    {
+      [[ "$error_output" =~ [Nn]ot.*[Ff]ound ]] ||
+      [[ "$error_output" =~ [Ee]rror.*rollout.*not.*found ]] ||
+      [[ "$error_output" =~ rollout\.argoproj\.io.*not.*found ]]
+    }
+  }
+
+  #shellcheck disable=SC2329
   function refresh_kubeconfig() {
     echo -e "${BLUE}🔄 Attempting to refresh kubeconfig...${NC}"
 
@@ -183,11 +194,12 @@ function exec_rollout_status() {
     while [[ $attempt -le $max_retries ]]; do
       kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) || kubectl_exit_code=$?
 
-      if [[ $kubectl_exit_code -eq 0 ]]; then
+      if [[ $kubectl_exit_code -eq 0 ]] || is_not_found_error "$kubectl_output"; then
         echo "$kubectl_output"
         return 0
       fi
 
+      # Check for authentication errors and retry with token refresh
       if is_auth_error "$kubectl_output"; then
         # Check if we have retries left (the loop condition handles the limit, but we check here
         # to avoid unnecessary kubeconfig refresh on the last attempt)
@@ -207,7 +219,8 @@ function exec_rollout_status() {
         echo "$kubectl_output" >&2
         return 2
       else
-        echo -e "${RED}❌ kubectl command failed (non-authentication error):${NC}" >&2
+        # Any other error (not "not found" and not auth error) should fail
+        echo -e "${RED}❌ kubectl command failed (unexpected error):${NC}" >&2
         echo "$kubectl_output" >&2
         return 2
       fi
@@ -308,7 +321,7 @@ function exec_rollout_status() {
   local timeout_result=0
   timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f print_rollout_status_result rollout_is_progressing rollout_is_auto_sync_disabled get_auto_sync_enabled)
-  $(declare -f is_auth_error refresh_kubeconfig get_kubectl_argo_rollout)
+  $(declare -f is_auth_error is_not_found_error refresh_kubeconfig get_kubectl_argo_rollout)
   $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
   $(declare -f update_kubeconfig)
   $(declare -f check_rollout_status)
