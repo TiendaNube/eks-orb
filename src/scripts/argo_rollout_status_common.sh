@@ -43,7 +43,7 @@ fi
 source <(echo "${UPDATE_KUBECONFIG_COMMON_SCRIPT}")
 
 if ! declare -f "update_kubeconfig" > /dev/null; then
-  echo -e "${RED}❌ Error: update_kubeconfig function is defined.${NC}" >&2
+  echo -e "${RED}❌ Error: update_kubeconfig function is not defined.${NC}" >&2
   exit 2
 fi
 
