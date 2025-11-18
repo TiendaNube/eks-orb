@@ -149,6 +149,8 @@ function update_kubeconfig() {
     cmd_args+=("--verbose")
   fi
 
+  echo "cmd_args: ${cmd_args[*]}"
+
   # Execute the command
   aws eks update-kubeconfig "${cmd_args[@]}"
 }
