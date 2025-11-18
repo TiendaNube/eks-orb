@@ -16,8 +16,14 @@
 #   --verbose               Print detailed output (optional)
 #
 # Environment Variables (for auto-detection):
-#   EKS_CLUSTER_NAME or CLUSTER_NAME - Cluster name (if not provided as parameter)
-#   AWS_REGION or AWS_DEFAULT_REGION - AWS region (if not provided as parameter)
+#   KUBECONFIG_CLUSTER_NAME - Cluster name (if not provided as parameter)
+#   KUBECONFIG_AWS_REGION - AWS region (if not provided as parameter)
+#   KUBECONFIG_AWS_PROFILE - AWS profile (if not provided as parameter)
+#   KUBECONFIG_FILE_PATH - Path to kubeconfig file (if not provided as parameter)
+#   KUBECONFIG_ROLE_ARN - IAM role ARN to assume for cluster authentication (if not provided as parameter)
+#   KUBECONFIG_CLUSTER_CONTEXT_ALIAS - Alias for the cluster context name (if not provided as parameter)
+#   KUBECONFIG_DRY_RUN - Print merged kubeconfig to stdout instead of writing (if not provided as parameter)
+#   KUBECONFIG_VERBOSE - Print detailed output (if not provided as parameter)
 #
 # Returns:
 #   - Exit code 0 on success
@@ -27,7 +33,6 @@
 function update_kubeconfig() {
   local cluster_name="" aws_region="" aws_profile="" kubeconfig_file_path=""
   local role_arn="" cluster_context_alias="" dry_run=false verbose=false
-  local current_context=""
 
   # Parse flags
   while [[ "$#" -gt 0 ]]; do
@@ -77,40 +82,49 @@ function update_kubeconfig() {
 
   # Auto-detect cluster name if not provided
   if [[ -z "$cluster_name" ]]; then
-    if [[ -n "${EKS_CLUSTER_NAME:-}" ]]; then
-      cluster_name="${EKS_CLUSTER_NAME}"
-    elif [[ -n "${CLUSTER_NAME:-}" ]]; then
-      cluster_name="${CLUSTER_NAME}"
-    else
-      # Try to extract from current kubeconfig context
-      current_context=$(kubectl config current-context 2>/dev/null || echo "")
-      if [[ -n "$current_context" ]]; then
-        # Extract cluster name from context (format: arn:aws:eks:region:account:cluster/cluster-name)
-        cluster_name=$(kubectl config view -o jsonpath="{.contexts[?(@.name==\"$current_context\")].context.cluster}" 2>/dev/null | sed -E 's|.*/([^/]+)$|\1|' || echo "")
-      fi
+    if [[ -n "${KUBECONFIG_CLUSTER_NAME:-}" ]]; then
+      cluster_name="${KUBECONFIG_CLUSTER_NAME}"
     fi
   fi
 
   # Auto-detect AWS region if not provided
   if [[ -z "$aws_region" ]]; then
-    if [[ -n "${AWS_REGION:-}" ]]; then
-      aws_region="${AWS_REGION}"
-    elif [[ -n "${AWS_DEFAULT_REGION:-}" ]]; then
-      aws_region="${AWS_DEFAULT_REGION}"
-    else
-      # Try to extract from current kubeconfig context
-      if [[ -z "$current_context" ]]; then
-        current_context=$(kubectl config current-context 2>/dev/null || echo "")
-      fi
-      if [[ -n "$current_context" ]]; then
-        aws_region=$(kubectl config view -o jsonpath="{.contexts[?(@.name==\"$current_context\")].context.cluster}" 2>/dev/null | sed -E 's|.*:eks:([^:]+):.*|\1|' || echo "")
-      fi
+    if [[ -n "${KUBECONFIG_AWS_REGION:-}" ]]; then
+      aws_region="${KUBECONFIG_AWS_REGION}"
+    fi
+  fi
+
+  # Auto-detect AWS profile if not provided
+  if [[ -z "$aws_profile" ]]; then
+    if [[ -n "${KUBECONFIG_AWS_PROFILE:-}" ]]; then
+      aws_profile="${KUBECONFIG_AWS_PROFILE}"
+    fi
+  fi
+
+  # Auto-detect kubeconfig file path if not provided
+  if [[ -z "$kubeconfig_file_path" ]]; then
+    if [[ -n "${KUBECONFIG_FILE_PATH:-}" ]]; then
+      kubeconfig_file_path="${KUBECONFIG_FILE_PATH}"
+    fi
+  fi
+
+  # Auto-detect role ARN if not provided
+  if [[ -z "$role_arn" ]]; then
+    if [[ -n "${KUBECONFIG_ROLE_ARN:-}" ]]; then
+      role_arn="${KUBECONFIG_ROLE_ARN}"
+    fi
+  fi
+
+  # Auto-detect cluster context alias if not provided
+  if [[ -z "$cluster_context_alias" ]]; then
+    if [[ -n "${KUBECONFIG_CLUSTER_CONTEXT_ALIAS:-}" ]]; then
+      cluster_context_alias="${KUBECONFIG_CLUSTER_CONTEXT_ALIAS}"
     fi
   fi
 
   # Validate required parameters
   if [[ -z "$cluster_name" ]]; then
-    echo "Error: Cluster name is required. Provide --cluster-name or set EKS_CLUSTER_NAME/CLUSTER_NAME environment variable." >&2
+    echo "Error: Cluster name is required. Provide --cluster-name or set KUBECONFIG_CLUSTER_NAME environment variable." >&2
     return 1
   fi
 
