@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Colors for output
+RED="\033[0;31m"
+NC="\033[0m" # No Color
+
 if [[ -z "${UPDATE_KUBECONFIG_COMMON_SCRIPT:-}" ]]; then
   echo -e "${RED}❌ Error: UPDATE_KUBECONFIG_COMMON_SCRIPT is empty${NC}" >&2
   exit 2
