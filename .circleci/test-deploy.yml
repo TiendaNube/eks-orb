@@ -37,7 +37,7 @@ workflows:
     jobs:
       - production-argo-deploy-approval:
           type: approval
-          filters: *filter-production
+          filters: *filter-staging
       - eks/argo-deploy:
           name: production-argo-deploy
           context: microservices
