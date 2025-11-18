@@ -92,7 +92,7 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [production-argo-deploy-approval]
-          filters: *filter-production
+          filters: *filter-staging
   staging-argo-test-and-deploy:
     jobs:
       - staging-argo-deploy-approval:
