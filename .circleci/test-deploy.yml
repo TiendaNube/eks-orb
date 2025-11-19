@@ -37,7 +37,6 @@ workflows:
     jobs:
       - production-argo-deploy-approval:
           type: approval
-          filters: *filter-staging
       - eks/argo-deploy:
           name: production-argo-deploy
           context: microservices
@@ -93,7 +92,6 @@ workflows:
             --set-string labels.version=${CIRCLE_BRANCH} \
             --set-string env.DUMMY_ENV_VAR="dummy-value-1" \
           requires: [production-argo-deploy-approval]
-          filters: *filter-staging
   staging-argo-test-and-deploy:
     jobs:
       - staging-argo-deploy-approval:
@@ -149,7 +147,6 @@ workflows:
             --set-string labels.version=${CIRCLE_BRANCH} \
             --set-string env.DUMMY_ENV_VAR="dummy-value-1" \
           requires: [staging-argo-deploy-approval]
-          filters: *filter-staging
   staging-helmv3-test-and-deploy:
     jobs:
       - staging-helmv3-deploy-approval:
@@ -259,4 +256,3 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [staging-helmv2-deploy-approval]
-          filters: *filter-staging
