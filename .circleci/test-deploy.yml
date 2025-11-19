@@ -44,6 +44,7 @@ workflows:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
                 region: ${AWS_REGION}
+                session_duration: 120
             - run:
                 name: Simulate fetching secrets from AWS Secrets Manager and update helm envs
                 command: |
@@ -90,7 +91,7 @@ workflows:
             --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
-            --set-string env.DUMMY_ENV_VAR="dummy-value-1" \
+            --set-string env.DUMMY_ENV_VAR="dummy-value-0" \
           requires: [production-argo-deploy-approval]
   staging-argo-test-and-deploy:
     jobs:
@@ -146,7 +147,7 @@ workflows:
             --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
-            --set-string env.DUMMY_ENV_VAR="dummy-value-1" \
+            --set-string env.DUMMY_ENV_VAR="dummy-value-0" \
           requires: [staging-argo-deploy-approval]
   staging-helmv3-test-and-deploy:
     jobs:
@@ -203,7 +204,6 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [staging-helmv3-deploy-approval]
-          filters: *filter-staging
   staging-helmv2-test-and-deploy:
     jobs:
       - staging-helmv2-deploy-approval:
