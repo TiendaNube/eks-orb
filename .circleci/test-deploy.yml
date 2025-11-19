@@ -104,6 +104,7 @@ workflows:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
                 region: ${AWS_REGION_STAGING}
+                session_duration: 120
             - run:
                 name: Simulate fetching secrets from AWS Secrets Manager and update helm envs
                 command: |
