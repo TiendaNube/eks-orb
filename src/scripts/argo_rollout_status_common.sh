@@ -145,21 +145,6 @@ function exec_rollout_status() {
   }
 
   #shellcheck disable=SC2329
-  function is_auth_error() {
-    local error_output="$1"
-    # Check for common authentication/token expiration error patterns
-    {
-      [[ "$error_output" =~ [Uu]nauthorized ]] ||
-      [[ "$error_output" =~ [Tt]oken.*[Ee]xpired ]] ||
-      [[ "$error_output" =~ [Aa]uthentication.*[Ff]ailed ]] ||
-      [[ "$error_output" =~ [Yy]ou.*must.*be.*logged.*in ]] ||
-      [[ "$error_output" =~ [Ee]rror.*from.*server.*\(.*401.*\) ]] ||
-      [[ "$error_output" =~ [Ee]rror.*from.*server.*\(.*Forbidden.*\) ]] ||
-      [[ "$error_output" =~ [Aa]ccess.*[Dd]enied ]]
-    }
-  }
-
-  #shellcheck disable=SC2329
   function is_not_found_error() {
     local error_output="$1"
     # Check for "not found" error patterns
@@ -168,6 +153,19 @@ function exec_rollout_status() {
       [[ "$error_output" =~ [Ee]rror.*rollout.*not.*found ]] ||
       [[ "$error_output" =~ rollout\.argoproj\.io.*not.*found ]]
     }
+  }
+
+  #shellcheck disable=SC2329
+  function check_kubectl_auth() {
+    local namespace="$1"
+    
+    # Test authentication with a lightweight command
+    # This proactively checks if the token is still valid before attempting operations
+    if kubectl auth can-i get pods --namespace "${namespace}" >/dev/null 2>&1; then
+      return 0
+    else
+      return 1
+    fi
   }
 
   #shellcheck disable=SC2329
@@ -200,7 +198,7 @@ function exec_rollout_status() {
       fi
 
       # Check for authentication errors and retry with token refresh
-      if is_auth_error "$kubectl_output"; then
+      if ! check_kubectl_auth "$namespace" >/dev/null 2>&1; then
         # Check if we have retries left (the loop condition handles the limit, but we check here
         # to avoid unnecessary kubeconfig refresh on the last attempt)
         if [[ $attempt -lt $max_retries ]]; then
@@ -238,6 +236,9 @@ function exec_rollout_status() {
     local i=1
 
     while true; do
+      echo "** DEBUG AWS EXPIRATION *************************************"
+      aws configure export-credentials --format env-no-export 2>/dev/null | grep EXPIRATION | cut -d "=" -f2
+      echo "*************************************************************"
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
       # Get kubectl rollout status (handles errors and retries internally)
@@ -322,7 +323,7 @@ function exec_rollout_status() {
   local timeout_result=0
   timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f print_rollout_status_result rollout_is_progressing rollout_is_auto_sync_disabled get_auto_sync_enabled)
-  $(declare -f is_auth_error is_not_found_error refresh_kubeconfig get_kubectl_argo_rollout)
+  $(declare -f is_not_found_error check_kubectl_auth refresh_kubeconfig get_kubectl_argo_rollout)
   $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
   $(declare -f update_kubeconfig)
   $(declare -f check_rollout_status)
