@@ -155,7 +155,18 @@ function update_kubeconfig() {
     cmd_args+=("--verbose")
   fi
 
+  echo "🔍 AWS UPDATE KUBECONFIG ARGUMENTS -------------------------------------"
+  echo "cluster_name: ${cluster_name}"
+  echo "aws_region: ${aws_region}"
+  echo "aws_profile: ${aws_profile}"
+  echo "kubeconfig_file_path: ${kubeconfig_file_path}"
+  echo "role_arn: ${role_arn}"
+  echo "cluster_context_alias: ${cluster_context_alias}"
+  echo "dry_run: ${dry_run}"
+  echo "verbose: ${verbose}"
+  echo "-------------------------------------------------------------------------"
   echo "cmd_args: ${cmd_args[*]}"
+  echo "-------------------------------------------------------------------------"
 
   # Execute the command
   aws eks update-kubeconfig "${cmd_args[@]}"
