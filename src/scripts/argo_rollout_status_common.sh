@@ -214,6 +214,8 @@ function exec_rollout_status() {
           fi
         fi
       done < "$aws_credentials_file"
+    else
+      echo -e "${RED}❌ AWS credentials file not found: ${aws_credentials_file}${NC}"
     fi
     
     # Method 2: Search in CLI cache if not found
@@ -236,11 +238,15 @@ function exec_rollout_status() {
           fi
         done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
       fi
+    else
+      echo -e "${RED}❌ AWS CLI cache directory not found: ${HOME}/.aws/cli/cache${NC}"
     fi
     
     # Export in the expected format (without "export" as in env-no-export)
     if [[ -n "$expiration" ]]; then
       echo "AWS_CREDENTIAL_EXPIRATION=${expiration}"
+    else
+      echo -e "${RED}❌ No AWS credentials expiration found${NC}"
     fi
   }
 
