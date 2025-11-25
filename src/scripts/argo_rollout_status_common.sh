@@ -188,19 +188,29 @@ function exec_rollout_status() {
     local profile="${AWS_PROFILE:-${KUBECONFIG_AWS_PROFILE:-default}}"
     local aws_credentials_file="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
     local expiration=""
-    
+
+    echo "------------------------------------------------------"
+    echo "🔍 Searching for profile: ${profile}"
+    echo "------------------------------------------------------"
+
     # Method 1: Read from ~/.aws/credentials file
     if [[ -f "$aws_credentials_file" ]]; then
       # Search for the profile section and read the expiration field
+      echo "------------------------------------------------------"
+      echo "📄 AWS Credentials File: ${aws_credentials_file}"
+      cat "$aws_credentials_file"
+      echo "------------------------------------------------------"
       local in_profile=false
       while IFS= read -r line || [[ -n "$line" ]]; do
         # Detect start of profile section (supports both [profile-name] and [profile profile-name])
         if [[ "$line" =~ ^\[${profile}\] ]] || [[ "$line" =~ ^\[profile\ ${profile}\] ]]; then
+          echo -e "${BLUE}🔍 Found profile: ${profile}${NC}"
           in_profile=true
           continue
         fi
         # If we find another section, exit
         if [[ "$in_profile" == true ]] && [[ "$line" =~ ^\[ ]]; then
+          echo -e "${BLUE}🔍 Found end of profile: ${profile}${NC}"
           break
         fi
         # If we're in the correct profile, search for expiration
@@ -210,6 +220,7 @@ function exec_rollout_status() {
             # Trim whitespace
             expiration="${expiration#"${expiration%%[![:space:]]*}"}"
             expiration="${expiration%"${expiration##*[![:space:]]}"}"
+            echo -e "${BLUE}🔍 Found expiration: ${expiration}${NC}"
             break
           fi
         fi
@@ -219,27 +230,30 @@ function exec_rollout_status() {
     fi
     
     # Method 2: Search in CLI cache if not found
-    if [[ -z "$expiration" ]] && [[ -d "$HOME/.aws/cli/cache" ]]; then
-      if command -v jq &> /dev/null; then
-        local cache_file
-        while IFS= read -r -d '' cache_file; do
-          expiration=$(jq -r '.Credentials.Expiration // empty' "$cache_file" 2>/dev/null)
-          if [[ -n "$expiration" ]] && [[ "$expiration" != "null" ]] && [[ "$expiration" != "" ]]; then
-            break
-          fi
-        done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+    if [[ -z "$expiration" ]]; then
+      echo -e "${BLUE}🔍 No expiration found in credentials file, searching in CLI cache...${NC}"
+      if [[ -d "$HOME/.aws/cli/cache" ]]; then
+        if command -v jq &> /dev/null; then
+          local cache_file
+          while IFS= read -r -d '' cache_file; do
+            expiration=$(jq -r '.Credentials.Expiration // empty' "$cache_file" 2>/dev/null)
+            if [[ -n "$expiration" ]] && [[ "$expiration" != "null" ]] && [[ "$expiration" != "" ]]; then
+              break
+            fi
+          done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+        else
+          # Fallback without jq: search for expiration in JSON files
+          local cache_file
+          while IFS= read -r -d '' cache_file; do
+            expiration=$(grep -o '"Expiration"[[:space:]]*:[[:space:]]*"[^"]*"' "$cache_file" 2>/dev/null | head -1 | sed 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+            if [[ -n "$expiration" ]]; then
+              break
+            fi
+          done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+        fi
       else
-        # Fallback without jq: search for expiration in JSON files
-        local cache_file
-        while IFS= read -r -d '' cache_file; do
-          expiration=$(grep -o '"Expiration"[[:space:]]*:[[:space:]]*"[^"]*"' "$cache_file" 2>/dev/null | head -1 | sed 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-          if [[ -n "$expiration" ]]; then
-            break
-          fi
-        done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+        echo -e "${RED}❌ AWS CLI cache directory not found: ${HOME}/.aws/cli/cache${NC}"
       fi
-    else
-      echo -e "${RED}❌ AWS CLI cache directory not found: ${HOME}/.aws/cli/cache${NC}"
     fi
     
     # Export in the expected format (without "export" as in env-no-export)
