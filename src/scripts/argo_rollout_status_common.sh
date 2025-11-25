@@ -182,6 +182,69 @@ function exec_rollout_status() {
   }
 
   #shellcheck disable=SC2329
+  function get_aws_credential_expiration_v1() {
+    # Function to get AWS_CREDENTIAL_EXPIRATION compatible with AWS CLI v1
+    # Equivalent to: aws configure export-credentials --format env-no-export --profile <profile>
+    local profile="${AWS_PROFILE:-${KUBECONFIG_AWS_PROFILE:-default}}"
+    local aws_credentials_file="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
+    local expiration=""
+    
+    # Method 1: Read from ~/.aws/credentials file
+    if [[ -f "$aws_credentials_file" ]]; then
+      # Search for the profile section and read the expiration field
+      local in_profile=false
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        # Detect start of profile section (supports both [profile-name] and [profile profile-name])
+        if [[ "$line" =~ ^\[${profile}\] ]] || [[ "$line" =~ ^\[profile\ ${profile}\] ]]; then
+          in_profile=true
+          continue
+        fi
+        # If we find another section, exit
+        if [[ "$in_profile" == true ]] && [[ "$line" =~ ^\[ ]]; then
+          break
+        fi
+        # If we're in the correct profile, search for expiration
+        if [[ "$in_profile" == true ]]; then
+          if [[ "$line" =~ ^[[:space:]]*expiration[[:space:]]*=[[:space:]]*(.+)$ ]]; then
+            expiration="${BASH_REMATCH[1]}"
+            # Trim whitespace
+            expiration="${expiration#"${expiration%%[![:space:]]*}"}"
+            expiration="${expiration%"${expiration##*[![:space:]]}"}"
+            break
+          fi
+        fi
+      done < "$aws_credentials_file"
+    fi
+    
+    # Method 2: Search in CLI cache if not found
+    if [[ -z "$expiration" ]] && [[ -d "$HOME/.aws/cli/cache" ]]; then
+      if command -v jq &> /dev/null; then
+        local cache_file
+        while IFS= read -r -d '' cache_file; do
+          expiration=$(jq -r '.Credentials.Expiration // empty' "$cache_file" 2>/dev/null)
+          if [[ -n "$expiration" ]] && [[ "$expiration" != "null" ]] && [[ "$expiration" != "" ]]; then
+            break
+          fi
+        done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+      else
+        # Fallback without jq: search for expiration in JSON files
+        local cache_file
+        while IFS= read -r -d '' cache_file; do
+          expiration=$(grep -o '"Expiration"[[:space:]]*:[[:space:]]*"[^"]*"' "$cache_file" 2>/dev/null | head -1 | sed 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+          if [[ -n "$expiration" ]]; then
+            break
+          fi
+        done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+      fi
+    fi
+    
+    # Export in the expected format (without "export" as in env-no-export)
+    if [[ -n "$expiration" ]]; then
+      echo "AWS_CREDENTIAL_EXPIRATION=${expiration}"
+    fi
+  }
+
+  #shellcheck disable=SC2329
   function get_kubectl_argo_rollout() {
     local rollout_name="$1"
     local namespace="$2"
@@ -237,7 +300,9 @@ function exec_rollout_status() {
 
     while true; do
       echo "** DEBUG AWS EXPIRATION *************************************"
-      aws configure export-credentials --format env-no-export
+      # Use AWS CLI v1 compatible function instead of v2's export-credentials
+      # aws configure export-credentials --format env-no-export
+      get_aws_credential_expiration_v1
       echo "*************************************************************"
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
@@ -326,6 +391,7 @@ function exec_rollout_status() {
   $(declare -f is_not_found_error check_kubectl_auth refresh_kubeconfig get_kubectl_argo_rollout)
   $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
   $(declare -f update_kubeconfig)
+  $(declare -f get_aws_credential_expiration_v1)
   $(declare -f check_rollout_status)
   check_rollout_status
 EOF
