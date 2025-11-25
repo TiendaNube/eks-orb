@@ -369,7 +369,7 @@ function exec_rollout_status() {
             fi
             
             local decoded_payload
-            decoded_payload=$(echo "$token_payload" | base64 -d 2>/dev/null)
+            decoded_payload=$(echo "$token_payload" | base64 -d 2>/dev/null | tr -d '\0')
             
             if [[ -n "$decoded_payload" ]] && command -v jq &> /dev/null; then
               expiration=$(echo "$decoded_payload" | jq -r '.exp // .expiration // empty' 2>/dev/null)
