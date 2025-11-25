@@ -111,7 +111,7 @@ workflows:
           checkout: true
           cluster-name: staging
           image-tag: stg-60cbb90
-          region: ${AWS_REGION_STAGING}
+          region: us-west-2
           namespace: argocd-rollouts-it
           release-name: ${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH}
           s3-chart-repo: tiendanube-charts
