@@ -188,80 +188,262 @@ function exec_rollout_status() {
     local profile="${AWS_PROFILE:-${KUBECONFIG_AWS_PROFILE:-default}}"
     local aws_credentials_file="${AWS_SHARED_CREDENTIALS_FILE:-$HOME/.aws/credentials}"
     local expiration=""
+    local session_token=""
+    local aws_region="${AWS_DEFAULT_REGION:-${AWS_REGION:-us-east-1}}"
 
     echo "------------------------------------------------------"
-    echo "🔍 Searching for profile: ${profile}"
+    echo "🔍 Searching for AWS credential expiration"
+    echo "   Profile: ${profile}"
+    echo "   Credentials file: ${aws_credentials_file}"
+    echo "   AWS Region: ${aws_region}"
     echo "------------------------------------------------------"
 
-    # Method 1: Read from ~/.aws/credentials file
-    if [[ -f "$aws_credentials_file" ]]; then
-      # Search for the profile section and read the expiration field
-      echo "------------------------------------------------------"
-      echo "📄 AWS Credentials File: ${aws_credentials_file}"
-      cat "$aws_credentials_file"
-      echo "------------------------------------------------------"
-      local in_profile=false
-      while IFS= read -r line || [[ -n "$line" ]]; do
-        # Detect start of profile section (supports both [profile-name] and [profile profile-name])
-        if [[ "$line" =~ ^\[${profile}\] ]] || [[ "$line" =~ ^\[profile\ ${profile}\] ]]; then
-          echo -e "${BLUE}🔍 Found profile: ${profile}${NC}"
-          in_profile=true
-          continue
-        fi
-        # If we find another section, exit
-        if [[ "$in_profile" == true ]] && [[ "$line" =~ ^\[ ]]; then
-          echo -e "${BLUE}🔍 Found end of profile: ${profile}${NC}"
-          break
-        fi
-        # If we're in the correct profile, search for expiration
-        if [[ "$in_profile" == true ]]; then
-          if [[ "$line" =~ ^[[:space:]]*expiration[[:space:]]*=[[:space:]]*(.+)$ ]]; then
-            expiration="${BASH_REMATCH[1]}"
-            # Trim whitespace
-            expiration="${expiration#"${expiration%%[![:space:]]*}"}"
-            expiration="${expiration%"${expiration##*[![:space:]]}"}"
-            echo -e "${BLUE}🔍 Found expiration: ${expiration}${NC}"
-            break
-          fi
-        fi
-      done < "$aws_credentials_file"
+    # Method 0: Check if already set in environment (highest priority)
+    # Some CI/CD systems or orbs may set this directly
+    echo "📋 Method 0: Checking environment variable AWS_CREDENTIAL_EXPIRATION..."
+    if [[ -n "${AWS_CREDENTIAL_EXPIRATION:-}" ]]; then
+      expiration="${AWS_CREDENTIAL_EXPIRATION}"
+      echo -e "${GREEN}✅ Found expiration in environment: ${expiration}${NC}"
     else
+      echo -e "${YELLOW}⚠️  Not found in environment${NC}"
+    fi
+
+    # Method 1: Read from ~/.aws/credentials file using awk
+    if [[ -z "$expiration" ]] && [[ -f "$aws_credentials_file" ]]; then
+      echo "------------------------------------------------------"
+      echo "📋 Method 1: Reading from credentials file..."
+      echo "📄 AWS Credentials File: ${aws_credentials_file}"
+      echo "------------------------------------------------------"
+      expiration=$(awk -v p="$profile" '
+        BEGIN { in_section = 0 }
+        /^\[.*\]/ { 
+          in_section = ($0 ~ "^\\[" p "\\]") || ($0 ~ "^\\[profile " p "\\]")
+        }
+        in_section && /^[[:space:]]*expiration[[:space:]]*=/ {
+          sub(/^[[:space:]]*expiration[[:space:]]*=[[:space:]]*/, "")
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+          print
+          exit
+        }
+      ' "$aws_credentials_file")
+      
+      if [[ -n "$expiration" ]]; then
+        echo -e "${GREEN}✅ Found expiration in credentials file: ${expiration}${NC}"
+      else
+        echo -e "${YELLOW}⚠️  Expiration field not found in credentials file${NC}"
+        
+        # Also check for session_token while we're at it (for Method 4)
+        echo "🔍 Checking for session_token in credentials file..."
+        session_token=$(awk -v p="$profile" '
+          BEGIN { in_section = 0 }
+          /^\[.*\]/ { 
+            in_section = ($0 ~ "^\\[" p "\\]") || ($0 ~ "^\\[profile " p "\\]")
+          }
+          in_section && /^[[:space:]]*aws_session_token[[:space:]]*=/ {
+            sub(/^[[:space:]]*aws_session_token[[:space:]]*=[[:space:]]*/, "")
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            print
+            exit
+          }
+        ' "$aws_credentials_file")
+        
+        if [[ -n "$session_token" ]]; then
+          echo -e "${BLUE}ℹ️  Found session_token (temporary credentials detected)${NC}"
+        else
+          echo -e "${YELLOW}⚠️  No session_token found (credentials may be permanent)${NC}"
+        fi
+      fi
+    elif [[ ! -f "$aws_credentials_file" ]]; then
       echo -e "${RED}❌ AWS credentials file not found: ${aws_credentials_file}${NC}"
     fi
     
-    # Method 2: Search in CLI cache if not found
+    # Method 2: Search in CLI cache if not found (most recent file first)
+    # This is where AWS CLI v1 stores temporary credentials from assume-role, etc.
     if [[ -z "$expiration" ]]; then
-      echo -e "${BLUE}🔍 No expiration found in credentials file, searching in CLI cache...${NC}"
+      echo "------------------------------------------------------"
+      echo "📋 Method 2: Searching in CLI cache..."
+      echo "   Cache directory: ${HOME}/.aws/cli/cache"
+      echo "------------------------------------------------------"
       if [[ -d "$HOME/.aws/cli/cache" ]]; then
         if command -v jq &> /dev/null; then
+          echo "🔍 Using jq to search cache files..."
           local cache_file
+          local cache_count=0
           while IFS= read -r -d '' cache_file; do
+            cache_count=$((cache_count + 1))
+            echo "   Checking cache file ${cache_count}: $(basename "$cache_file")"
             expiration=$(jq -r '.Credentials.Expiration // empty' "$cache_file" 2>/dev/null)
             if [[ -n "$expiration" ]] && [[ "$expiration" != "null" ]] && [[ "$expiration" != "" ]]; then
+              echo -e "${GREEN}✅ Found expiration in cache: ${expiration}${NC}"
               break
             fi
           done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+          if [[ -z "$expiration" ]]; then
+            echo -e "${YELLOW}⚠️  No expiration found in ${cache_count} cache file(s)${NC}"
+          fi
         else
-          # Fallback without jq: search for expiration in JSON files
+          echo "🔍 Using grep to search cache files (jq not available)..."
           local cache_file
           while IFS= read -r -d '' cache_file; do
             expiration=$(grep -o '"Expiration"[[:space:]]*:[[:space:]]*"[^"]*"' "$cache_file" 2>/dev/null | head -1 | sed 's/.*"Expiration"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
             if [[ -n "$expiration" ]]; then
+              echo -e "${GREEN}✅ Found expiration in cache: ${expiration}${NC}"
               break
             fi
           done < <(find "$HOME/.aws/cli/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
         fi
       else
-        echo -e "${RED}❌ AWS CLI cache directory not found: ${HOME}/.aws/cli/cache${NC}"
+        echo -e "${YELLOW}⚠️  AWS CLI cache directory not found: ${HOME}/.aws/cli/cache${NC}"
+      fi
+    fi
+    
+    # Method 3: Try to read from alternative locations where CI/CD systems might store it
+    # Some systems write expiration to a separate file or use different cache locations
+    if [[ -z "$expiration" ]]; then
+      echo "------------------------------------------------------"
+      echo "📋 Method 3: Checking SSO cache..."
+      echo "   SSO cache directory: ${HOME}/.aws/sso/cache"
+      echo "------------------------------------------------------"
+      if [[ -d "$HOME/.aws/sso/cache" ]]; then
+        local sso_cache_file
+        local sso_count=0
+        while IFS= read -r -d '' sso_cache_file; do
+          sso_count=$((sso_count + 1))
+          echo "   Checking SSO cache file ${sso_count}: $(basename "$sso_cache_file")"
+          if command -v jq &> /dev/null; then
+            expiration=$(jq -r '.expiresAt // empty' "$sso_cache_file" 2>/dev/null)
+            if [[ -n "$expiration" ]] && [[ "$expiration" != "null" ]] && [[ "$expiration" != "" ]]; then
+              echo -e "${GREEN}✅ Found expiration in SSO cache: ${expiration}${NC}"
+              break
+            fi
+          fi
+        done < <(find "$HOME/.aws/sso/cache" -name "*.json" -type f -print0 2>/dev/null | sort -z -r)
+        if [[ -z "$expiration" ]]; then
+          echo -e "${YELLOW}⚠️  No expiration found in SSO cache${NC}"
+        fi
+      else
+        echo -e "${YELLOW}⚠️  SSO cache directory not found${NC}"
+      fi
+    fi
+    
+    # Method 4: Get expiration from AWS API by decoding session token or making API call
+    if [[ -z "$expiration" ]]; then
+      echo "------------------------------------------------------"
+      echo "📋 Method 4: Attempting to get expiration from AWS API..."
+      echo "------------------------------------------------------"
+      
+      # First, get the session_token if we don't have it yet
+      if [[ -z "$session_token" ]] && [[ -f "$aws_credentials_file" ]]; then
+        echo "🔍 Retrieving session_token from credentials file..."
+        session_token=$(awk -v p="$profile" '
+          BEGIN { in_section = 0 }
+          /^\[.*\]/ { 
+            in_section = ($0 ~ "^\\[" p "\\]") || ($0 ~ "^\\[profile " p "\\]")
+          }
+          in_section && /^[[:space:]]*aws_session_token[[:space:]]*=/ {
+            sub(/^[[:space:]]*aws_session_token[[:space:]]*=[[:space:]]*/, "")
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+            print
+            exit
+          }
+        ' "$aws_credentials_file")
+      fi
+      
+      if [[ -n "$session_token" ]]; then
+        echo -e "${BLUE}ℹ️  Session token found, attempting to decode or query AWS API...${NC}"
+        
+        # Try to decode the session token (AWS session tokens are base64-encoded JSON)
+        # The token format is: base64(header).base64(payload).signature
+        # The payload contains expiration information
+        if command -v base64 &> /dev/null; then
+          echo "🔍 Attempting to decode session token..."
+          # Extract the payload (second part of the token)
+          local token_payload
+          token_payload=$(echo "$session_token" | cut -d'.' -f2 2>/dev/null)
+          
+          if [[ -n "$token_payload" ]]; then
+            # Add padding if needed and decode
+            local padding=$((4 - ${#token_payload} % 4))
+            if [[ $padding -ne 4 ]]; then
+              token_payload="${token_payload}$(printf '%*s' $padding | tr ' ' '=')"
+            fi
+            
+            local decoded_payload
+            decoded_payload=$(echo "$token_payload" | base64 -d 2>/dev/null)
+            
+            if [[ -n "$decoded_payload" ]] && command -v jq &> /dev/null; then
+              expiration=$(echo "$decoded_payload" | jq -r '.exp // .expiration // empty' 2>/dev/null)
+              if [[ -n "$expiration" ]] && [[ "$expiration" != "null" ]]; then
+                # Convert Unix timestamp to ISO 8601 format if needed
+                if [[ "$expiration" =~ ^[0-9]+$ ]]; then
+                  if command -v date &> /dev/null; then
+                    expiration=$(date -u -d "@${expiration}" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -r "${expiration}" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "$expiration")
+                  fi
+                fi
+                echo -e "${GREEN}✅ Found expiration in decoded token: ${expiration}${NC}"
+              fi
+            fi
+          fi
+        fi
+        
+        # If decoding didn't work, try to get expiration via AWS API
+        # Note: This requires making an API call, which may have costs or rate limits
+        if [[ -z "$expiration" ]]; then
+          echo "🔍 Attempting to get expiration via AWS STS API call..."
+          echo "   Note: This makes an actual API call to AWS"
+          
+          local profile_args=()
+          [[ "$profile" != "default" ]] && profile_args=("--profile" "$profile")
+          
+          # First, verify credentials work
+          local sts_output
+          if sts_output=$(aws sts get-caller-identity "${profile_args[@]}" --region "$aws_region" --output json 2>&1); then
+            echo -e "${GREEN}✅ AWS API call successful (credentials are valid)${NC}"
+            
+            # Try to extract role ARN from the response (if credentials are from assume-role)
+            local role_arn
+            if command -v jq &> /dev/null; then
+              role_arn=$(echo "$sts_output" | jq -r '.Arn // empty' 2>/dev/null)
+              echo "   Current identity ARN: ${role_arn}"
+              
+              # If the ARN contains "assumed-role", we can try to get expiration from the role session
+              # However, AWS doesn't provide an API to get expiration of existing credentials
+              # The only way is if the credentials were obtained via assume-role and we have the response
+              
+              # Check if we can find the role ARN in config file to potentially re-assume it
+              # (but we won't do that as it would create new credentials)
+              echo -e "${YELLOW}⚠️  AWS API doesn't provide expiration in get-caller-identity response${NC}"
+              echo -e "${YELLOW}⚠️  Cannot determine expiration without it being stored locally${NC}"
+              echo -e "${BLUE}ℹ️  Credentials are valid and working, but expiration info is not available${NC}"
+            else
+              echo -e "${YELLOW}⚠️  jq not available to parse response${NC}"
+            fi
+            
+            # Alternative approach: Try to get expiration by making a test call and checking response headers
+            # Some AWS services return expiration in response metadata, but STS doesn't
+            echo "🔍 Checking if expiration can be obtained from response metadata..."
+            # Unfortunately, AWS STS doesn't return expiration in response metadata
+            echo -e "${YELLOW}⚠️  Expiration not available in API response${NC}"
+          else
+            echo -e "${RED}❌ AWS API call failed: ${sts_output}${NC}"
+            echo -e "${RED}❌ Cannot verify credentials or get expiration information${NC}"
+          fi
+        fi
+      else
+        echo -e "${YELLOW}⚠️  No session_token found - credentials may be permanent (no expiration)${NC}"
       fi
     fi
     
     # Export in the expected format (without "export" as in env-no-export)
+    echo "------------------------------------------------------"
     if [[ -n "$expiration" ]]; then
+      echo -e "${GREEN}✅ FINAL RESULT: AWS_CREDENTIAL_EXPIRATION=${expiration}${NC}"
       echo "AWS_CREDENTIAL_EXPIRATION=${expiration}"
     else
-      echo -e "${RED}❌ No AWS credentials expiration found${NC}"
+      echo -e "${RED}❌ FINAL RESULT: No AWS credential expiration found${NC}"
+      echo -e "${YELLOW}⚠️  Credentials will work, but expiration information is not available${NC}"
     fi
+    echo "------------------------------------------------------"
   }
 
   #shellcheck disable=SC2329
