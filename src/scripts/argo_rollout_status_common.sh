@@ -237,7 +237,7 @@ function exec_rollout_status() {
 
     while true; do
       echo "** DEBUG AWS EXPIRATION *************************************"
-      aws configure export-credentials --format env-no-export
+      aws configure export-credentials --format env-no-export 2>/dev/null | grep EXPIRATION
       echo "*************************************************************"
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
