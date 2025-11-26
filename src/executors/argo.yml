@@ -1,4 +1,4 @@
 description: CircleCI convenience image for AWS EKS
 docker:
-  - image: tiendanube/circleci-eks:v2.3.0-rc1
+  - image: tiendanube/circleci-eks:v2.3.0-rc2
 resource_class: medium
