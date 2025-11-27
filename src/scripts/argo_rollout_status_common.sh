@@ -234,6 +234,8 @@ function exec_rollout_status() {
     local kubectl_output argocd_output rollout_status sync_status health_status operation_phase auto_sync_status
     local i=1
 
+    local kubectl_exit_code=0
+
     while true; do
       echo "-------------------------------- DEBUG AWS EXPIRATION -------"
       aws_credentials=$(aws configure export-credentials --format env-no-export 2>/dev/null)
@@ -259,7 +261,10 @@ function exec_rollout_status() {
       # kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
       kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) || kubectl_exit_code=$?
 
+      echo "kubectl_exit_code: $kubectl_exit_code"
+
       if [[ $kubectl_exit_code -ne 0 ]] && ! is_not_found_error "$kubectl_output"; then
+        echo "kubectl command failed"
         # Check for authentication errors and retry with token refresh
         if ! check_kubectl_auth "$namespace" >/dev/null 2>&1; then
           echo -e "${BLUE}🔄 Authentication error detected. Refreshing kubeconfig...${NC}"
@@ -276,7 +281,10 @@ function exec_rollout_status() {
           echo "$kubectl_output" >&2
           exit 2
         fi
+      else
+        echo "kubectl command succeeded"
       fi
+      echo "kubectl_output:"
       echo "$kubectl_output"
 
       rollout_status=$(echo "$kubectl_output" | grep "^Status:" | awk '{print $3}')
