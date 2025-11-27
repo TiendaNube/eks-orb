@@ -341,7 +341,10 @@ function exec_rollout_status() {
       fi
 
       i=$((i+1))
+      echo "Sleeping for $rollout_status_check_interval seconds"
       sleep "${rollout_status_check_interval}"
+      echo "End of loop"
+      echo "==============================================================="
     done
   }
 
