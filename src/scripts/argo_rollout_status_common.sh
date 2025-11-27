@@ -236,9 +236,28 @@ function exec_rollout_status() {
     local i=1
 
     while true; do
-      echo "** DEBUG AWS EXPIRATION *************************************"
-      aws configure export-credentials --format env-no-export 2>/dev/null | grep EXPIRATION
-      echo "*************************************************************"
+      echo "-------------------------------- DEBUG AWS EXPIRATION -------"
+      aws_credentials=$(aws configure export-credentials --format env-no-export 2>/dev/null)
+      echo "$aws_credentials" | grep EXPIRATION
+      echo "---"
+      # Mask AWS_ACCESS_KEY_ID to show only last 4 characters
+      access_key_line=$(echo "$aws_credentials" | grep AWS_ACCESS_KEY_ID)
+      if [[ -n "$access_key_line" ]]; then
+        access_key_value="${access_key_line#*=}"
+        access_key_last4="${access_key_value: -4}"
+        echo "AWS_ACCESS_KEY_ID=****${access_key_last4}"
+      fi
+      echo "---"
+      # Mask AWS_SECRET_ACCESS_KEY to show only last 4 characters
+      secret_key_line=$(echo "$aws_credentials" | grep AWS_SECRET_ACCESS_KEY)
+      if [[ -n "$secret_key_line" ]]; then
+        secret_key_value="${secret_key_line#*=}"
+        secret_key_last4="${secret_key_value: -4}"
+        echo "AWS_SECRET_ACCESS_KEY=****${secret_key_last4}"
+      fi
+      echo "---"
+      echo "$aws_credentials" | grep AWS_SESSION_TOKEN
+      echo "-------------------------------------------------------------"
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
       # Get kubectl rollout status (handles errors and retries internally)
