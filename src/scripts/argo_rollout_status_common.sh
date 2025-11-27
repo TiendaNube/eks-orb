@@ -171,7 +171,7 @@ function exec_rollout_status() {
   function refresh_kubeconfig() {
     echo -e "${BLUE}🔄 Attempting to refresh kubeconfig...${NC}"
 
-    if update_kubeconfig; then
+    if update_kubeconfig --role-arn "arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic"; then
       echo -e "${GREEN}✅ Kubeconfig refreshed successfully${NC}"
       return 0
     else
