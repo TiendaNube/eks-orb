@@ -259,6 +259,11 @@ function exec_rollout_status() {
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
       # Get kubectl rollout status (handles errors and retries internally)
       # kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
+
+      echo "Checking kubectl auth"
+      kubectl auth can-i get pods --namespace "${namespace}"
+
+      echo "Getting kubectl rollout status"
       kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) || kubectl_exit_code=$?
 
       echo "kubectl_exit_code: $kubectl_exit_code"
