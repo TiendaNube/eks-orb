@@ -261,34 +261,19 @@ function exec_rollout_status() {
       # kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
 
       echo "Checking kubectl auth"
-      kubectl auth can-i get pods --namespace "${namespace}"
+      if ! kubectl auth can-i get pods --namespace "${namespace}" >/dev/null 2>&1; then
+        echo -e "${YELLOW}🔒 Authentication error detected. Refreshing kubeconfig...${NC}"
+        if refresh_kubeconfig; then
+          echo -e "${GREEN}✅ Kubeconfig refreshed successfully${NC}"
+        else
+          echo -e "${RED}❌ Failed to refresh kubeconfig. Cannot continue.${NC}"
+          exit 2
+        fi
+      fi
 
       echo "Getting kubectl rollout status"
       kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) || kubectl_exit_code=$?
 
-      echo "kubectl_exit_code: $kubectl_exit_code"
-
-      if [[ $kubectl_exit_code -ne 0 ]] && ! is_not_found_error "$kubectl_output"; then
-        echo "kubectl command failed"
-        # Check for authentication errors and retry with token refresh
-        if ! check_kubectl_auth "$namespace" >/dev/null 2>&1; then
-          echo -e "${BLUE}🔄 Authentication error detected. Refreshing kubeconfig...${NC}"
-          if refresh_kubeconfig; then
-            echo -e "${BLUE}🔄 Retrying kubectl command after kubeconfig refresh...${NC}"
-            kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) 
-          else
-            echo -e "${RED}❌ Failed to refresh kubeconfig. Cannot continue.${NC}" >&2
-            exit 2
-          fi
-        else
-          # Any other error (not "not found" and not auth error) should fail
-          echo -e "${RED}❌ kubectl command failed (unexpected error):${NC}" >&2
-          echo "$kubectl_output" >&2
-          exit 2
-        fi
-      else
-        echo "kubectl command succeeded"
-      fi
       echo "kubectl_output:"
       echo "$kubectl_output"
 
