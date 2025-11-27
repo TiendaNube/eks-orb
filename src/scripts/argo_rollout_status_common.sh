@@ -160,7 +160,6 @@ function exec_rollout_status() {
     local namespace="$1"
     
     # Test authentication with a lightweight command
-    # This proactively checks if the token is still valid before attempting operations
     if kubectl auth can-i get pods --namespace "${namespace}" >/dev/null 2>&1; then
       return 0
     else
@@ -239,7 +238,6 @@ function exec_rollout_status() {
       echo "-------------------------------- DEBUG AWS EXPIRATION -------"
       aws_credentials=$(aws configure export-credentials --format env-no-export 2>/dev/null)
       echo "$aws_credentials" | grep EXPIRATION
-      echo "---"
       # Mask AWS_ACCESS_KEY_ID to show only last 4 characters
       access_key_line=$(echo "$aws_credentials" | grep AWS_ACCESS_KEY_ID)
       if [[ -n "$access_key_line" ]]; then
@@ -247,7 +245,6 @@ function exec_rollout_status() {
         access_key_last4="${access_key_value: -4}"
         echo "AWS_ACCESS_KEY_ID=****${access_key_last4}"
       fi
-      echo "---"
       # Mask AWS_SECRET_ACCESS_KEY to show only last 4 characters
       secret_key_line=$(echo "$aws_credentials" | grep AWS_SECRET_ACCESS_KEY)
       if [[ -n "$secret_key_line" ]]; then
@@ -255,13 +252,31 @@ function exec_rollout_status() {
         secret_key_last4="${secret_key_value: -4}"
         echo "AWS_SECRET_ACCESS_KEY=****${secret_key_last4}"
       fi
-      echo "---"
-      echo "$aws_credentials" | grep AWS_SESSION_TOKEN
       echo "-------------------------------------------------------------"
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
       # Get kubectl rollout status (handles errors and retries internally)
-      kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
+      # kubectl_output=$(get_kubectl_argo_rollout "${rollout_name}" "${namespace}") || return $?
+      kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) || kubectl_exit_code=$?
+
+      if [[ $kubectl_exit_code -ne 0 ]] && ! is_not_found_error "$kubectl_output"; then
+        # Check for authentication errors and retry with token refresh
+        if ! check_kubectl_auth "$namespace" >/dev/null 2>&1; then
+          echo -e "${BLUE}🔄 Authentication error detected. Refreshing kubeconfig...${NC}"
+          if refresh_kubeconfig; then
+            echo -e "${BLUE}🔄 Retrying kubectl command after kubeconfig refresh...${NC}"
+            kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1) 
+          else
+            echo -e "${RED}❌ Failed to refresh kubeconfig. Cannot continue.${NC}" >&2
+            exit 2
+          fi
+        else
+          # Any other error (not "not found" and not auth error) should fail
+          echo -e "${RED}❌ kubectl command failed (unexpected error):${NC}" >&2
+          echo "$kubectl_output" >&2
+          exit 2
+        fi
+      fi
       echo "$kubectl_output"
 
       rollout_status=$(echo "$kubectl_output" | grep "^Status:" | awk '{print $3}')
