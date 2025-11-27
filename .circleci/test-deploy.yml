@@ -98,7 +98,6 @@ workflows:
           filters: *filter-staging
       - eks/argo-deploy:
           name: staging-argo-deploy
-          context: microservices
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
