@@ -36,10 +36,11 @@ function add_repository() {
   local repo_url="$1"
   local project="$2"
   local application_namespace="$3"
+  local repo_name="$4"
   if with_argocd_cli --namespace "${application_namespace}" -- argocd repo get "$repo_url" --project "$project"; then
     echo -e "${GREEN}✨ Repository $repo_url already registered in ArgoCD.${NC}"
   else
-    if with_argocd_cli --namespace "${application_namespace}" -- argocd repo add "$repo_url" --project "$project"; then
+    if with_argocd_cli --namespace "${application_namespace}" -- argocd repo add "$repo_url" --project "$project" --name "$repo_name"; then
       echo -e "${GREEN}✅ Repository $repo_url successfully added to ArgoCD.${NC}"
     else
       echo -e "${RED}❌ Error: Failed to add repository to ArgoCD.${NC}" >&2
@@ -51,9 +52,10 @@ function add_repository() {
 # Print usage instructions
 function usage() {
   echo -e "${GREEN}Usage:${NC} Set the following environment variables before running this script:"
-  echo "  REPOSITORY_HTTP_URL   Repository URL (required)"
-  echo "  PROJECT               ArgoCD project name (required)"
-  echo "  APPLICATION_NAMESPACE Application namespace (required)"
+  echo "  REPOSITORY_HTTP_URL       Github repository URL (required)"
+  echo "  PROJECT                   ArgoCD project name (required)"
+  echo "  APPLICATION_NAMESPACE     Application namespace (required)"
+  echo "  CIRCLE_PROJECT_REPONAME   Github repository name (required)"
 }
 
 function main() {
@@ -61,14 +63,23 @@ function main() {
   local repo_url="${REPOSITORY_HTTP_URL}"
   local project="${PROJECT}"  
   local application_namespace="${APPLICATION_NAMESPACE}"
+  local repo_name="${CIRCLE_PROJECT_REPONAME}"
 
-  if [[ -z "$repo_url" || -z "$project" || -z "$application_namespace" ]]; then
-    echo -e "${RED}Error: REPOSITORY_HTTP_URL, PROJECT, and APPLICATION_NAMESPACE environment variables are required.${NC}"
+  # Validate required variables
+  local missing_vars=()
+  [[ -z "$repo_url" ]] && missing_vars+=("REPOSITORY_HTTP_URL")
+  [[ -z "$project" ]] && missing_vars+=("PROJECT")
+  [[ -z "$application_namespace" ]] && missing_vars+=("APPLICATION_NAMESPACE")
+  [[ -z "$repo_name" ]] && missing_vars+=("CIRCLE_PROJECT_REPONAME")
+
+  if [[ ${#missing_vars[@]} -gt 0 ]]; then
+    echo -e "${RED}Error: The following required environment variables are missing:${NC}"
+    printf '  - %s\n' "${missing_vars[@]}"
     usage
     exit 2
   fi
 
-  add_repository "$repo_url" "$project" "$application_namespace"
+  add_repository "$repo_url" "$project" "$application_namespace" "$repo_name"
 }
 
 main "$@"
