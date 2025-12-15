@@ -10,6 +10,15 @@ labels:
   app: rollouts-it
   service: rollouts-it
 
+deployment:
+  canary:
+    steps:
+      - setWeight: 25
+      - pause: {}
+      - setWeight: 60
+      - pause: {}
+      - setWeight: 100
+
 ingress:
   enabled: true
   annotations:

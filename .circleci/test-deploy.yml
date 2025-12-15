@@ -37,7 +37,6 @@ workflows:
     jobs:
       - production-argo-deploy-approval:
           type: approval
-          filters: *filter-production
       - eks/argo-deploy:
           name: production-argo-deploy
           context: microservices
@@ -45,6 +44,7 @@ workflows:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
                 region: ${AWS_REGION}
+                session_duration: "900"
             - run:
                 name: Simulate fetching secrets from AWS Secrets Manager and update helm envs
                 command: |
@@ -75,11 +75,9 @@ workflows:
             --set fullnameOverride=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set env.DD_TAGS="git.commit.sha:${CIRCLE_SHA1} git.repository_url:github.com/TiendaNube/${CIRCLE_PROJECT_REPONAME}" \
             --set ingress.annotations."alb\.ingress\.kubernetes\.io/certificate-arn"=${AWS_ACM_CERTIFICATES} \
-            --set ingress.hosts[0]=${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BRANCH}.nubestaging.com \
             --set labels.app=${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH} \
             --set labels.service=${CIRCLE_PROJECT_REPONAME} \
             --set serviceAccount.create=false \
-            --set-string env.APP_ENDPOINT="https://${CIRCLE_PROJECT_REPONAME}.${CIRCLE_BRANCH}.nubestaging.com" \
             --set-string env.DD_ENV=feature \
             --set-string env.DD_LOGS_INJECTION=true \
             --set-string env.DD_RUNTIME_METRICS_ENABLED=true \
@@ -91,8 +89,8 @@ workflows:
             --set-string labels.commit_id=${CIRCLE_SHA1:0:7} \
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
+            --set-string env.DUMMY_ENV_VAR="dummy-value-1" \
           requires: [production-argo-deploy-approval]
-          filters: *filter-production
   staging-argo-test-and-deploy:
     jobs:
       - staging-argo-deploy-approval:
@@ -100,11 +98,11 @@ workflows:
           filters: *filter-staging
       - eks/argo-deploy:
           name: staging-argo-deploy
-          context: microservices
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
                 region: ${AWS_REGION_STAGING}
+                session_duration: "900"
             - run:
                 name: Simulate fetching secrets from AWS Secrets Manager and update helm envs
                 command: |
@@ -112,7 +110,7 @@ workflows:
           checkout: true
           cluster-name: staging
           image-tag: stg-60cbb90
-          region: ${AWS_REGION_STAGING}
+          region: us-west-2
           namespace: argocd-rollouts-it
           release-name: ${CIRCLE_PROJECT_REPONAME}-${CIRCLE_BRANCH}
           s3-chart-repo: tiendanube-charts
@@ -148,7 +146,6 @@ workflows:
             --set-string labels.version=${CIRCLE_BRANCH} \
             --set-string env.DUMMY_ENV_VAR="dummy-value-0" \
           requires: [staging-argo-deploy-approval]
-          filters: *filter-staging
   staging-helmv3-test-and-deploy:
     jobs:
       - staging-helmv3-deploy-approval:
@@ -204,7 +201,6 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [staging-helmv3-deploy-approval]
-          filters: *filter-staging
   staging-helmv2-test-and-deploy:
     jobs:
       - staging-helmv2-deploy-approval:
@@ -258,4 +254,3 @@ workflows:
             --set-string labels.protected_branch="false" \
             --set-string labels.version=${CIRCLE_BRANCH} \
           requires: [staging-helmv2-deploy-approval]
-          filters: *filter-staging
