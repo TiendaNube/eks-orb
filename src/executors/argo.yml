@@ -1,4 +1,7 @@
 description: CircleCI convenience image for AWS EKS
 docker:
-  - image: tiendanube/circleci-eks:v2.2.0
+  - image: tiendanube/circleci-eks:v2.3.0-rc1
+    aws-auth:
+      oidc_role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
+      region: us-west-2
 resource_class: medium
