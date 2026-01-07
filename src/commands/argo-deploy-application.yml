@@ -202,6 +202,11 @@ steps:
             kind: ServiceAccount
             jqPathExpressions:
               - ".metadata.annotations[\"eks.amazonaws.com/role-arn\"]"
+          # Ignore differences in the Rollout replicas as it is managed by HPA when it is enabled
+          - group: argoproj.io
+            kind: Rollout
+            jqPathExpressions:
+              - ". | select(.metadata.annotations[\"tiendanube.com/hpa-enabled\"] == \"true\") | .spec.replicas"
         EOF
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
