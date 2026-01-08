@@ -153,10 +153,8 @@ function exec_rollout_status() {
       auto_sync_prune=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.prune // "false"')
       auto_sync_self_heal=$(echo "$argocd_output" | jq -r '.spec.syncPolicy.automated.selfHeal // "false"')
 
-      if rollout_is_progressing "$rollout_status" "$health_status" "$operation_phase"; then
-        echo -e "${BLUE}⏳ Waiting... Rollout status is [$rollout_status].${NC}"
-        echo -e "${BLUE}Application Sync status [$sync_status]; Health status [$health_status]; Operation phase [$operation_phase].${NC}"
-      elif rollout_is_auto_sync_disabled "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
+      # If auto sync is disabled, enable it manually before doing anything else (we need to be sure that the rollout is progressing)
+      if rollout_is_auto_sync_disabled "$auto_sync_status" "$auto_sync_self_heal" "$auto_sync_prune"; then
         echo "**********************************************************************"
         echo "$argocd_output" | jq -r '.spec.syncPolicy'
         echo "**********************************************************************"
@@ -173,6 +171,9 @@ function exec_rollout_status() {
           echo -e "${RED}❌ Failed to enable auto sync. Please check ArgoCD permissions.${NC}"
           return 1
         fi
+      elif rollout_is_progressing "$rollout_status" "$health_status" "$operation_phase"; then
+        echo -e "${BLUE}⏳ Waiting... Rollout status is [$rollout_status].${NC}"
+        echo -e "${BLUE}Application Sync status [$sync_status]; Health status [$health_status]; Operation phase [$operation_phase].${NC}"
       else
         case "$rollout_status" in
           Healthy|Completed)
