@@ -21,7 +21,78 @@
 
 # Colors for output
 RED="\033[0;31m"
+BLUE="\033[0;34m"
 NC="\033[0m" # No Color
+
+if ! command -v argocd >/dev/null 2>&1; then
+  echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
+  exit 2
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  echo -e "${RED}❌ Error: jq is not installed or not in PATH.${NC}"
+  exit 2
+fi
+
+# We use 'argocd app list' to check if the application exists. 
+# We cannot use 'argocd app get' because it fails with PermissionDenied when the application is not found (masking the actual error).
+function does_argocd_app_exist() {
+  local application_namespace="$1"
+  local release_name="$2"
+  local output status
+
+  output=$(with_argocd_cli --namespace "${application_namespace}" -- argocd app list -l "app=${release_name}" --output json)
+  status=$?
+
+  if [[ $status -ne 0 ]]; then
+    echo -e "${RED}❌ Error: Unexpected failure querying ArgoCD Application '${release_name}'.${NC}"
+    echo -e "${BLUE}📓 Output:${NC}\n${output}"
+    return 1
+  fi
+
+  if [[ -z "$output" ]]; then
+    echo -e "${RED}❌ Error: argocd app list command returned empty output.${NC}"
+    return 1
+  fi
+
+  # Use jq to analyze the output is valid JSON
+  if ! echo "$output" | jq empty 2>/dev/null; then
+    echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
+    echo -e "${BLUE}📓 Output:${NC}\n${output}"
+    return 1
+  fi
+
+  # Application exists if JSON array has elements
+  echo "$output" | jq -e 'length > 0' >/dev/null
+}
+
+# Checks if an Argo Rollout exists in the specified namespace.
+# Arguments:
+#   $1 - Namespace where the rollout is deployed
+#   $2 - Rollout name
+# Returns:
+#   0 - Rollout exists
+#   1 - Rollout does not exist
+#   2 - Unexpected error
+function does_argocd_rollout_exist() {
+  local namespace="$1"
+  local rollout_name="$2"
+  local output
+
+  output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}" 2>&1)
+
+  if [[ $? -eq 0 ]]; then
+    return 0
+  fi
+
+  if [[ "$output" == *"not found"* ]]; then
+    return 1
+  fi
+
+  echo -e "${RED}❌ Error: Unexpected failure querying Argo Rollout '${rollout_name}' in namespace '${namespace}'.${NC}"
+  echo -e "${BLUE}📓 Output:${NC}\n${output}"
+  return 2
+}
 
 function is_argocd_logged_in() {
   # Test authentication with a lightweight command
