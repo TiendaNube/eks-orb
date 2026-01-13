@@ -141,12 +141,15 @@ function exec_rollout_status() {
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
 
       # Wait for application to exist before checking status
-      if ! does_argocd_app_exist "${APPLICATION_NAMESPACE}" "${rollout_name}"; then
+      local app_exists_status
+      does_argocd_app_exist "${APPLICATION_NAMESPACE}" "${rollout_name}"; app_exists_status=$?
+      [[ $app_exists_status -eq 2 ]] && return 1
+      [[ $app_exists_status -eq 1 ]] && {
         echo -e "${YELLOW}⏳ Waiting for ArgoCD Application '${rollout_name}' to exist...${NC}"
         i=$((i+1))
         sleep "${rollout_status_check_interval}"
         continue
-      fi
+      }
 
       # Wait for rollout to exist before checking status
       local rollout_exists_status

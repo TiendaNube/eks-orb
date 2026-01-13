@@ -34,8 +34,16 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-# We use 'argocd app list' to check if the application exists. 
+# Checks if an ArgoCD Application exists in the specified namespace.
+# We use 'argocd app list' to check if the application exists.
 # We cannot use 'argocd app get' because it fails with PermissionDenied when the application is not found (masking the actual error).
+# Arguments:
+#   $1 - Namespace where the application is deployed
+#   $2 - Release name
+# Returns:
+#   0 - Application exists
+#   1 - Application does not exist
+#   2 - Unexpected error
 function does_argocd_app_exist() {
   local application_namespace="$1"
   local release_name="$2"
@@ -47,19 +55,19 @@ function does_argocd_app_exist() {
   if [[ $status -ne 0 ]]; then
     echo -e "${RED}❌ Error: Unexpected failure querying ArgoCD Application '${release_name}'.${NC}"
     echo -e "${BLUE}📓 Output:${NC}\n${output}"
-    return 1
+    return 2
   fi
 
   if [[ -z "$output" ]]; then
     echo -e "${RED}❌ Error: argocd app list command returned empty output.${NC}"
-    return 1
+    return 2
   fi
 
   # Use jq to analyze the output is valid JSON
   if ! echo "$output" | jq empty 2>/dev/null; then
     echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
     echo -e "${BLUE}📓 Output:${NC}\n${output}"
-    return 1
+    return 2
   fi
 
   # Application exists if JSON array has elements

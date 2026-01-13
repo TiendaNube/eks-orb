@@ -58,11 +58,14 @@ function print_header() {
 }
 
 function validate_app_exists() {
-  if ! does_argocd_app_exist "${APPLICATION_NAMESPACE}" "${RELEASE_NAME}"; then
+  local app_exists_status
+  does_argocd_app_exist "${APPLICATION_NAMESPACE}" "${RELEASE_NAME}"; app_exists_status=$?
+  [[ $app_exists_status -eq 2 ]] && exit 1
+  [[ $app_exists_status -eq 1 ]] && {
     echo -e "${YELLOW}⚠️ Argo Application ${RELEASE_NAME} not found in namespace ${APPLICATION_NAMESPACE}. First deploy.${NC}"
     echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
     exit 0
-  fi
+  }
 }
 
 # shellcheck disable=SC2329
