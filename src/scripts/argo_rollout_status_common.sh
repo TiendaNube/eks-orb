@@ -139,6 +139,29 @@ function exec_rollout_status() {
     while true; do
       echo "============================================================="
       echo "🔍 Checking Rollout / Application status (attempt $i)..."
+
+      # Wait for application to exist before checking status
+      local app_exists_status
+      does_argocd_app_exist "${APPLICATION_NAMESPACE}" "${rollout_name}"; app_exists_status=$?
+      [[ $app_exists_status -eq 2 ]] && return 1
+      [[ $app_exists_status -eq 1 ]] && {
+        echo -e "${YELLOW}⏳ Waiting for ArgoCD Application '${rollout_name}' to exist...${NC}"
+        i=$((i+1))
+        sleep "${rollout_status_check_interval}"
+        continue
+      }
+
+      # Wait for rollout to exist before checking status
+      local rollout_exists_status
+      does_argocd_rollout_exist "${namespace}" "${rollout_name}"; rollout_exists_status=$?
+      [[ $rollout_exists_status -eq 2 ]] && return 1
+      [[ $rollout_exists_status -eq 1 ]] && {
+        echo -e "${YELLOW}⏳ Waiting for Argo Rollout '${rollout_name}' to exist...${NC}"
+        i=$((i+1))
+        sleep "${rollout_status_check_interval}"
+        continue
+      }
+
       # Get kubectl rollout status
       kubectl_output=$(kubectl argo rollouts get rollout "${rollout_name}" --namespace "${namespace}")
       echo "$kubectl_output"
@@ -218,7 +241,7 @@ function exec_rollout_status() {
   local timeout_result=0
   timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
   $(declare -f print_rollout_status_result rollout_is_progressing rollout_is_auto_sync_disabled get_auto_sync_enabled)
-  $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set)
+  $(declare -f with_argocd_cli set_argocd_cli unset_argocd_cli is_argocd_logged_in is_kubectl_namespace_set does_argocd_app_exist does_argocd_rollout_exist)
   $(declare -f check_rollout_status)
   check_rollout_status
 EOF

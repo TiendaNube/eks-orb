@@ -39,16 +39,6 @@ function validate_env_variables() {
 }
 
 function validate_requirements() {
-  if ! command -v argocd >/dev/null 2>&1; then
-    echo -e "${RED}❌ Error: argocd CLI is not installed or not in PATH.${NC}"
-    exit 2
-  fi
-
-  if ! command -v jq >/dev/null 2>&1; then
-    echo -e "${RED}❌ Error: jq is not installed or not in PATH.${NC}"
-    exit 2
-  fi
-
   if ! command -v timeout >/dev/null 2>&1; then
     echo -e "${RED}❌ Error: timeout is not installed or not in PATH.${NC}"
     exit 2
@@ -67,43 +57,15 @@ function print_header() {
   echo "============================================================="
 }
 
-# We use 'argocd app list' to check if the application exists. 
-# We cannot use 'argocd app get' because it fails with PermissionDenied when the application is not found (masking the actual error).
 function validate_app_exists() {
-  local output status
-
-  output=$(with_argocd_cli --namespace "${APPLICATION_NAMESPACE}" -- argocd app list -l "app=${RELEASE_NAME}" --output json)
-  status=$?
-
-  if [[ $status -ne 0 ]]; then
-    echo -e "${RED}❌ Error: Unexpected failure querying ArgoCD Application '${RELEASE_NAME}'.${NC}"
-    echo -e "${BLUE}📓 Output:${NC}\n${output}"
-    exit 1
-  fi
-  
-  if [[ -z "$output" ]]; then
-    echo -e "${RED}❌ Error: argocd app list command returned empty output.${NC}"
-    exit 1
-  fi
-  
-  # Use jq to analyze the output is valid JSON
-  if ! echo "$output" | jq empty 2>/dev/null; then
-    echo -e "${RED}❌ Error: argocd app list command returned invalid JSON output.${NC}"
-    echo -e "${BLUE}📓 Output:${NC}\n${output}"
-    exit 1
-  fi
-
-  local is_json_empty
-  is_json_empty=$(echo "$output" | jq '. == []')
-  if [[ "$is_json_empty" == true ]]; then
+  local app_exists_status
+  does_argocd_app_exist "${APPLICATION_NAMESPACE}" "${RELEASE_NAME}"; app_exists_status=$?
+  [[ $app_exists_status -eq 2 ]] && exit 1
+  [[ $app_exists_status -eq 1 ]] && {
     echo -e "${YELLOW}⚠️ Argo Application ${RELEASE_NAME} not found in namespace ${APPLICATION_NAMESPACE}. First deploy.${NC}"
     echo -e "${GREEN}🚀 Proceeding with the rollout.${NC}"
     exit 0
-  fi
-  
-  # If we reach here, JSON is valid and contains data.
-  # Application exists in ArgoCD, continue checking status.
-  return 0
+  }
 }
 
 # shellcheck disable=SC2329
