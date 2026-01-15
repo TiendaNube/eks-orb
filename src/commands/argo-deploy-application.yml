@@ -35,7 +35,10 @@ parameters:
   old-school-chart-file:
     description: The file name of the chart used before migrating
     type: string
-  # Parameters for ArgoCD Application migration
+  chart-version:
+    description: Version/branch of the Helm chart to use
+    type: string
+    default: master
 
 steps:
   - run:
@@ -163,7 +166,7 @@ steps:
           - path: microservices-v8
             name: main-helm-chart
             repoURL: https://github.com/TiendaNube/helm-charts
-            targetRevision: master
+            targetRevision: << parameters.chart-version >>
             helm:
               valueFiles:
                 - "\$values/<< parameters.values-file >>"$ADDITIONAL_VALUE_FILES

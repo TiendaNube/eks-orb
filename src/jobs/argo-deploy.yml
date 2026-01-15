@@ -20,6 +20,10 @@ parameters:
   chart:
     description: Chart that will be installed
     type: string
+  chart-version:
+    description: Version/branch of the Helm chart to use
+    type: string
+    default: master
   release-name:
     description: Helm release name
     type: string
@@ -191,6 +195,7 @@ steps:
       rollout-status-timeout: << parameters.rollout-status-timeout >>
       project: << parameters.project >>
       old-school-chart-file: /tmp/helm-detection/chart_name
+      chart-version: << parameters.chart-version >>
 
   - when:
       condition: << parameters.argocd-migration-workflow-enabled >>
