@@ -152,6 +152,14 @@ function exec_rollout_status() {
       }
 
       # Wait for rollout to exist before checking status
+      # Skip rollout validation when migration phase is "safe" (no rollout exists yet)
+      if [[ "${CANARY_MIGRATION_PHASE:-}" == "safe" ]]; then
+        echo -e "${GREEN}--------------------------------------------------------"
+        echo -e "✅ Migration phase is 'safe'. Skipping rollout validation."
+        echo -e "--------------------------------------------------------${NC}"
+        return 0
+      fi
+
       local rollout_exists_status
       does_argocd_rollout_exist "${namespace}" "${rollout_name}"; rollout_exists_status=$?
       [[ $rollout_exists_status -eq 2 ]] && return 1
@@ -227,6 +235,7 @@ function exec_rollout_status() {
     echo "   - Namespace: ${namespace}"
     echo "   - Timeout: ${rollout_status_timeout}"
     echo "   - Check interval: ${rollout_status_check_interval}s"
+    echo "   - Migration phase: ${CANARY_MIGRATION_PHASE:-unknown}"
     echo "--------------------------------------------------------"
   }
 
@@ -237,6 +246,7 @@ function exec_rollout_status() {
   # Export variables needed by the subshell invoked by timeout.
   export rollout_name namespace project_repo_name rollout_status_timeout rollout_status_check_interval
   export GREEN BLUE YELLOW RED NC
+  export CANARY_MIGRATION_PHASE
 
   local timeout_result=0
   timeout "${rollout_status_timeout}" bash -o pipefail -c "$(cat <<EOF
