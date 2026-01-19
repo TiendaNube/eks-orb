@@ -125,39 +125,42 @@ function detect_helm_version() {
   # Setup temp directory
   setup_temp_dir
 
-  # Try Helm v3
-  if detect_helmv3 "${release_name}" "${namespace}"; then
-    # Success - Helm v3 release found
+  # Check both Helm versions
+  detect_helmv3 "${release_name}" "${namespace}"
+  local v3_result=$?
+
+  detect_helmv2 "${release_name}" "${namespace}"
+  local v2_result=$?
+
+  # Check for errors
+  if [[ ${v3_result} -eq 2 ]]; then
+    echo "❌ Error occurred checking Helm v3"
+    return 1
+  fi
+  if [[ ${v2_result} -eq 2 ]]; then
+    echo "❌ Error occurred checking Helm v2"
+    return 1
+  fi
+
+  # Fail if release exists in both versions
+  if [[ ${v3_result} -eq 0 && ${v2_result} -eq 0 ]]; then
+    echo "❌ ERROR: Release '${release_name}' exists in BOTH Helm v2 and Helm v3!"
+    echo "   This is an invalid state. Please clean up the duplicate release before proceeding."
+    return 1
+  fi
+
+  # Process based on where release was found
+  if [[ ${v3_result} -eq 0 ]]; then
     print_results "helmv3" "$(cat ${CHART_NAME_FILE})" "Helm v3 release found"
     return 0
   fi
-  
-  # Check return code from detect_helmv3
-  local v3_result=$?
-  if [[ ${v3_result} -eq 2 ]]; then
-    # Error occurred with Helm v3 check that wasn't "not found"
-    echo "❌ Error occurred checking Helm v3"
-    return 1  # Exit with error
-  fi
-  
-  # If we're here, Helm v3 returned 1 (release not found), try Helm v2
-  echo "Trying Helm v2 since no v3 release found..."
-  
-  if detect_helmv2 "${release_name}" "${namespace}"; then
-    # Success - Helm v2 release found
+
+  if [[ ${v2_result} -eq 0 ]]; then
     print_results "helmv2" "$(cat ${CHART_NAME_FILE})" "Helm v2 release found"
     return 0
   fi
-  
-  # Check return code from detect_helmv2
-  local v2_result=$?
-  if [[ ${v2_result} -eq 2 ]]; then
-    # Error occurred with Helm v2 check that wasn't "not found"
-    echo "❌ Error occurred checking Helm v2"
-    return 1  # Exit with error
-  fi
-  
-  # If we're here, both Helm v2 and v3 returned "release not found"
+
+  # Neither found - default to helmv3
   echo "No Helm release found with either v2 or v3 - defaulting to helmv3 with empty chart"
   write_result "helmv3" ""
   print_results "helmv3" "" "No Helm release found, defaulting to helmv3"
