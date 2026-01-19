@@ -166,7 +166,7 @@ steps:
           - path: microservices-v8
             name: main-helm-chart
             repoURL: https://github.com/TiendaNube/helm-charts
-            targetRevision: << parameters.chart-version >>
+            targetRevision: ${CHART_VERSION}
             helm:
               valueFiles:
                 - "\$values/<< parameters.values-file >>"$ADDITIONAL_VALUE_FILES
