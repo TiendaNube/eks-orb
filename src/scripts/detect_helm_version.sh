@@ -19,6 +19,12 @@ DETECTION_DIR="${HELM_DETECTION_DIR:-/tmp/helm-detection}"
 VERSION_FILE="${DETECTION_DIR}/version"
 CHART_NAME_FILE="${DETECTION_DIR}/chart_name"
 BACKUP_MANIFEST_FILE="${DETECTION_DIR}/helm_backup_manifest.yaml"
+BACKUP_MANIFEST_FILE_V2="${DETECTION_DIR}/helm_v2_backup_manifest.yaml"
+BACKUP_MANIFEST_FILE_V3="${DETECTION_DIR}/helm_v3_backup_manifest.yaml"
+
+# Global variables for chart names
+CHART_NAME_V2=""
+CHART_NAME_V3=""
 
 # Setup dedicated directory for all temp files
 function setup_temp_dir() {
@@ -40,8 +46,7 @@ function write_result() {
 function detect_helmv3() {
   local release_name="$1"
   local namespace="$2"
-  local chart_name=""
-  
+
   echo "Checking Helm v3..."
   set +e
   HELM_V3_OUTPUT=$(helmv3 history "${release_name}" --namespace "${namespace}" -o yaml 2>&1)
@@ -52,13 +57,12 @@ function detect_helmv3() {
     # Extract chart name with yq if available
     if command -v yq &>/dev/null; then
       echo "${HELM_V3_OUTPUT}" | grep -v '^WARNING:' > "${DETECTION_DIR}/helm_v3_history.yaml"
-      chart_name=$(yq eval 'map(select(.status == "deployed")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v3_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
+      CHART_NAME_V3=$(yq eval 'map(select(.status == "deployed")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v3_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
     fi
     echo "✅ Helm v3 release detected"
-    echo "📄 Manifest saved to ${BACKUP_MANIFEST_FILE}"
-    helmv3 get manifest "${release_name}" --namespace "${namespace}" > "${BACKUP_MANIFEST_FILE}"
+    echo "📄 Manifest saved to ${BACKUP_MANIFEST_FILE_V3}"
+    helmv3 get manifest "${release_name}" --namespace "${namespace}" > "${BACKUP_MANIFEST_FILE_V3}"
     echo "------------------------------------------------------"
-    write_result "helmv3" "${chart_name:-}"
     return 0
   elif echo "${HELM_V3_OUTPUT}" | grep -q 'release: not found'; then
     echo "❓ Helm v3 release not found"
@@ -73,8 +77,7 @@ function detect_helmv3() {
 function detect_helmv2() {
   local release_name="$1"
   local namespace="$2"
-  local chart_name=""
-  
+
   echo "Checking Helm v2..."
   set +e
   HELM_V2_OUTPUT=$(helm history "${release_name}" -o yaml 2>&1)
@@ -85,13 +88,12 @@ function detect_helmv2() {
     # Extract chart name with yq if available
     if command -v yq &>/dev/null; then
       echo "${HELM_V2_OUTPUT}" | grep -v '^WARNING:' > "${DETECTION_DIR}/helm_v2_history.yaml"
-      chart_name=$(yq eval 'map(select(.status == "DEPLOYED")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v2_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
+      CHART_NAME_V2=$(yq eval 'map(select(.status == "DEPLOYED")) | .[0].chart // ""' "${DETECTION_DIR}/helm_v2_history.yaml" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+$//')
     fi
     echo "✅ Helm v2 release detected"
-    echo "📄 Manifest saved to ${BACKUP_MANIFEST_FILE}"
-    helm get manifest "${release_name}" > "${BACKUP_MANIFEST_FILE}"
+    echo "📄 Manifest saved to ${BACKUP_MANIFEST_FILE_V2}"
+    helm get manifest "${release_name}" > "${BACKUP_MANIFEST_FILE_V2}"
     echo "------------------------------------------------------"
-    write_result "helmv2" "${chart_name:-}"
     return 0
   elif echo "${HELM_V2_OUTPUT}" | grep -q 'not found' || echo "${HELM_V2_OUTPUT}" | grep -q 'release: ".*" not found'; then
     echo "❓ Helm v2 release not found"
@@ -125,39 +127,46 @@ function detect_helm_version() {
   # Setup temp directory
   setup_temp_dir
 
-  # Try Helm v3
-  if detect_helmv3 "${release_name}" "${namespace}"; then
-    # Success - Helm v3 release found
-    print_results "helmv3" "$(cat ${CHART_NAME_FILE})" "Helm v3 release found"
-    return 0
-  fi
-  
-  # Check return code from detect_helmv3
+  # Check both Helm versions
+  detect_helmv3 "${release_name}" "${namespace}"
   local v3_result=$?
+
+  detect_helmv2 "${release_name}" "${namespace}"
+  local v2_result=$?
+
+  # Check for errors
   if [[ ${v3_result} -eq 2 ]]; then
-    # Error occurred with Helm v3 check that wasn't "not found"
     echo "❌ Error occurred checking Helm v3"
-    return 1  # Exit with error
+    return 1
   fi
-  
-  # If we're here, Helm v3 returned 1 (release not found), try Helm v2
-  echo "Trying Helm v2 since no v3 release found..."
-  
-  if detect_helmv2 "${release_name}" "${namespace}"; then
-    # Success - Helm v2 release found
-    print_results "helmv2" "$(cat ${CHART_NAME_FILE})" "Helm v2 release found"
+  if [[ ${v2_result} -eq 2 ]]; then
+    echo "❌ Error occurred checking Helm v2"
+    return 1
+  fi
+
+  # Fail if release exists in both versions
+  if [[ ${v3_result} -eq 0 && ${v2_result} -eq 0 ]]; then
+    echo "❌ ERROR: Release '${release_name}' exists in BOTH Helm v2 and Helm v3!"
+    echo "   This is an invalid state. Please clean up the duplicate release before proceeding."
+    return 1
+  fi
+
+  # Process based on where release was found (v3 has priority)
+  if [[ ${v3_result} -eq 0 ]]; then
+    write_result "helmv3" "${CHART_NAME_V3}"
+    cp "${BACKUP_MANIFEST_FILE_V3}" "${BACKUP_MANIFEST_FILE}"
+    print_results "helmv3" "${CHART_NAME_V3}" "Helm v3 release found"
     return 0
   fi
-  
-  # Check return code from detect_helmv2
-  local v2_result=$?
-  if [[ ${v2_result} -eq 2 ]]; then
-    # Error occurred with Helm v2 check that wasn't "not found"
-    echo "❌ Error occurred checking Helm v2"
-    return 1  # Exit with error
+
+  if [[ ${v2_result} -eq 0 ]]; then
+    write_result "helmv2" "${CHART_NAME_V2}"
+    cp "${BACKUP_MANIFEST_FILE_V2}" "${BACKUP_MANIFEST_FILE}"
+    print_results "helmv2" "${CHART_NAME_V2}" "Helm v2 release found"
+    return 0
   fi
-  
-  # If we're here, both Helm v2 and v3 returned "release not found"
+
+  # Neither found - default to helmv3
   echo "No Helm release found with either v2 or v3 - defaulting to helmv3 with empty chart"
   write_result "helmv3" ""
   print_results "helmv3" "" "No Helm release found, defaulting to helmv3"
