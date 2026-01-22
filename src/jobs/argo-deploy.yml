@@ -119,19 +119,6 @@ steps:
         echo "export REPOSITORY_HTTP_URL=$REPOSITORY_HTTP_URL" | tee -a $BASH_ENV
         echo "export HELM_DETECTION_DIR=/tmp/helm-detection" | tee -a $BASH_ENV
 
-        # Compute CHART_VERSION: use user-provided value, or infer from cluster-name
-        USER_CHART_VERSION="<< parameters.chart-version >>"
-        CLUSTER_NAME="<< parameters.cluster-name >>"
-        if [[ -n "$USER_CHART_VERSION" ]]; then
-          CHART_VERSION="$USER_CHART_VERSION"
-        elif [[ "$CLUSTER_NAME" == *"staging"* ]]; then
-          CHART_VERSION="staging"
-        else
-          CHART_VERSION="master"
-        fi
-        echo "export CHART_VERSION=$CHART_VERSION" | tee -a $BASH_ENV
-        echo "📦 Chart version: $CHART_VERSION"
-
   - when:
       condition: << parameters.checkout >>
       steps:
