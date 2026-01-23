@@ -35,7 +35,10 @@ parameters:
   old-school-chart-file:
     description: The file name of the chart used before migrating
     type: string
-  # Parameters for ArgoCD Application migration
+  chart-version:
+    description: Version/branch of the Helm chart to use
+    type: string
+    default: master
 
 steps:
   - run:
@@ -134,11 +137,23 @@ steps:
   - run:
       name: Create ArgoCD Application manifest
       command: |
+        # Compute CHART_VERSION from parameter or auto-detect from cluster
+        USER_CHART_VERSION="<< parameters.chart-version >>"
+        if [[ -n "$USER_CHART_VERSION" ]]; then
+          CHART_VERSION="$USER_CHART_VERSION"
+        elif [[ "$PROFILE_NAME" == *"staging"* ]]; then
+          CHART_VERSION="staging"
+        else
+          CHART_VERSION="master"
+        fi
+        # Set up directories and file paths
         ARGO_PARAMETERS_DIR=/tmp/argo-parameters
         ARGO_APP_VALUE_FILE="$ARGO_PARAMETERS_DIR/argocd-app-values.yaml"
         ARGO_PARAMETERS_FILE="$ARGO_PARAMETERS_DIR/parameters.yaml"
+        # Load and indent parameters from previous step
         PARAMETERS=$(cat "$ARGO_PARAMETERS_FILE")
         PARAMETERS_INDENTED=$(echo "$PARAMETERS" | awk 'NR==1{print $0; next} {print "      "$0}')
+        # Extract additional value files from helm args
         HELM_VALUES_FILES='<< parameters.args >>'
         VALUES_FILES=()
         while [[ "$HELM_VALUES_FILES" =~ --values[[:space:]]+([^[:space:]\\]+) ]]; do
@@ -151,6 +166,7 @@ steps:
             ADDITIONAL_VALUE_FILES+=$'\n'"        - \"\$values/${values_file}\""
           done
         fi
+        # Generate ArgoCD Application manifest
         cat \<< EOF > $ARGO_APP_VALUE_FILE
         argocd:
           namespace: argocd
@@ -163,7 +179,7 @@ steps:
           - path: microservices-v8
             name: main-helm-chart
             repoURL: https://github.com/TiendaNube/helm-charts
-            targetRevision: master
+            targetRevision: ${CHART_VERSION}
             helm:
               valueFiles:
                 - "\$values/<< parameters.values-file >>"$ADDITIONAL_VALUE_FILES
@@ -203,6 +219,7 @@ steps:
             jqPathExpressions:
               - ".metadata.annotations[\"eks.amazonaws.com/role-arn\"]"
         EOF
+        # Print generated manifest
         echo "------------------------------------------------------"
         echo "📄 ArgoCD Application manifest:"
         echo "------------------------------------------------------"
