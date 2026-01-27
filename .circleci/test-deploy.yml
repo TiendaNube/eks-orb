@@ -40,7 +40,7 @@ workflows:
           filters: *filter-production
       - eks/argo-deploy:
           name: production-argo-deploy
-          context: microservices
+          context: productivity-context
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
@@ -100,7 +100,7 @@ workflows:
           filters: *filter-staging
       - eks/argo-deploy:
           name: staging-argo-deploy
-          context: microservices
+          context: productivity-context
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
@@ -156,7 +156,7 @@ workflows:
           filters: *filter-staging
       - eks/helm-deploy:
           name: staging-helmv3-deploy
-          context: microservices
+          context: productivity-context
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
@@ -212,7 +212,7 @@ workflows:
           filters: *filter-staging
       - eks/helm-deploy:
           name: staging-helmv2-deploy
-          context: microservices
+          context: productivity-context
           pre-steps:
             - aws-cli/setup:
                 role_arn: arn:aws:iam::201009178507:role/CircleCIRoleForOIDC_Generic
