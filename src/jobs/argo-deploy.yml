@@ -156,12 +156,12 @@ steps:
         previous_chart_name=$(cat $HELM_DETECTION_CHART_NAME_FILE)
         if [[ -n "$previous_chart_name" ]]; then
           case "$previous_chart_name" in
-            microservices-v5 | microservices-v6 | microservices-v6-secrets-ext)
+            microservices-v5 | microservices-v6 | microservices-v6-secrets-ext | microservices-cf-v1-secrets-ext | microservices-cf)
               # Valid chart names, continue
               ;;
             *)
               echo "❌ Error: Invalid previous_chart_name detected."
-              echo "Allowed values are: 'microservices-v5', 'microservices-v6', 'microservices-v6-secrets-ext', or empty."
+              echo "Allowed values are: 'microservices-v5', 'microservices-v6', 'microservices-v6-secrets-ext', 'microservices-cf-v1-secrets-ext', 'microservices-cf', or empty."
               echo "Please review your configuration and try again."
               exit 1
               ;;
